@@ -1,0 +1,182 @@
+/* ─── Block overlay ──────────────────────────────────────────────────────── */
+#da-block-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+  background: #0d1117 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif !important;
+}
+
+.da-block-card {
+  max-width: 520px;
+  text-align: center;
+  padding: 40px 32px;
+}
+
+.da-block-icon { margin-bottom: 16px; }
+
+.da-block-title {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  color: #e6edf3 !important;
+  margin: 0 0 8px !important;
+}
+
+.da-block-domain {
+  font-size: 15px !important;
+  color: #f97316 !important;
+  font-family: 'SF Mono', 'Fira Code', monospace !important;
+  margin: 0 0 20px !important;
+  word-break: break-all;
+}
+
+.da-block-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding: 8px 20px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.da-score-num {
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  color: #ef4444 !important;
+}
+
+.da-score-label {
+  font-size: 12px !important;
+  color: #8b949e !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.da-block-reason {
+  font-size: 15px !important;
+  color: #e6edf3 !important;
+  line-height: 1.6 !important;
+  margin: 0 0 8px !important;
+}
+
+.da-block-technical {
+  font-size: 13px !important;
+  color: #8b949e !important;
+  line-height: 1.5 !important;
+  margin: 0 0 16px !important;
+}
+
+.da-block-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.da-flag {
+  font-size: 11px !important;
+  padding: 3px 10px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444 !important;
+  border-radius: 4px;
+}
+
+.da-block-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.da-btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.da-btn-back {
+  background: #f6821f !important;
+  color: #fff !important;
+}
+
+.da-btn-back:hover { background: #e5740f !important; }
+
+.da-btn-proceed {
+  background: transparent !important;
+  color: #8b949e !important;
+  border: 1px solid #30363d !important;
+}
+
+.da-btn-proceed:hover {
+  color: #e6edf3 !important;
+  border-color: #8b949e !important;
+}
+
+.da-block-powered {
+  font-size: 11px !important;
+  color: #484f58 !important;
+}
+
+/* ─── Warning banner ─────────────────────────────────────────────────────── */
+#da-warn-banner {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 2147483646 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 16px !important;
+  background: #1c1917 !important;
+  border-bottom: 2px solid #f59e0b !important;
+  color: #fbbf24 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif !important;
+  font-size: 13px !important;
+  transition: opacity 0.3s !important;
+}
+
+#da-warn-banner strong { color: #fbbf24 !important; }
+
+.da-banner-score {
+  margin-left: auto;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.da-banner-close {
+  background: none !important;
+  border: none !important;
+  color: #fbbf24 !important;
+  font-size: 20px !important;
+  cursor: pointer !important;
+  padding: 0 4px !important;
+  line-height: 1;
+}
+
+/* ─── Context toast ──────────────────────────────────────────────────────── */
+#da-context-toast {
+  position: fixed !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  z-index: 2147483645 !important;
+  background: #161b22 !important;
+  border: 1px solid #30363d !important;
+  border-radius: 12px !important;
+  padding: 14px 18px !important;
+  max-width: 320px !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+  transition: opacity 0.3s !important;
+}

@@ -1,0 +1,14 @@
+name = "domain-authenticator"
+main = "src/index.js"
+compatibility_date = "2024-09-25"
+
+[ai]
+binding = "AI"
+
+[[kv_namespaces]]
+binding = "DOMAIN_CACHE"
+id = "23242e9936dd4d65b37b9b472eea00ca"
+
+[[kv_namespaces]]
+binding = "COMMUNITY_VOTES"
+id = "84c78427da34492da46444811b8e0b5b"
