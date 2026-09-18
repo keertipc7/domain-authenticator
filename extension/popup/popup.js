@@ -213,31 +213,3 @@ async function restoreVoteButtonState(domain) {
     });
   }
 }
-
-/* Add these to extension/popup/popup.css */
-
-/* Vote confidence line */
-.vote-confidence {
-  font-size: 11px;
-  color: var(--t2);
-  margin-bottom: 8px;
-  font-style: italic;
-}
-
-/* Community consensus line */
-.vote-consensus {
-  font-size: 11px;
-  color: var(--t2);
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--b);
-}
-
-.verdict-community_safe         { color: var(--gn); font-weight: 500; }
-.verdict-community_leaning_safe { color: var(--bl); font-weight: 500; }
-.verdict-community_mixed        { color: var(--t2); font-weight: 500; }
-.verdict-community_suspicious   { color: var(--am); font-weight: 500; }
-.verdict-community_unsafe       { color: var(--rd); font-weight: 500; }
-
-/* Active vote button — bolder border */
-.vote-btn.active { border-width: 2px; font-weight: 700; }
