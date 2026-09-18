@@ -209,27 +209,150 @@ function checkCombinationOverrides(heuristics) {
   return overrides;
 }
 
-// ─── Community voting ───────────────────────────────────────────────────────
+// ─── Community voting v2 ─────────────────────────────────────────────────────
 
 async function getCommunityVotes(env, domain) {
   try {
     const data = await env.COMMUNITY_VOTES.get(`votes:${domain}`, 'json');
-    return data || { safe: 0, suspicious: 0, unsafe: 0, total: 0 };
-  } catch { return { safe: 0, suspicious: 0, unsafe: 0, total: 0 }; }
+    return data || { 
+      safe: 0, suspicious: 0, unsafe: 0,       // raw vote counts
+      wsafe: 0, wsuspicious: 0, wunsafe: 0,     // weighted vote totals
+      total: 0, voters: {}                        // voter registry
+    };
+  } catch {
+    return { safe: 0, suspicious: 0, unsafe: 0, wsafe: 0, wsuspicious: 0, wunsafe: 0, total: 0, voters: {} };
+  }
+}
+
+// Voter weight based on how many domains they've analyzed
+// More engagement = more trust in their vote, capped at 2x
+function voterWeight(voteCount) {
+  if (voteCount >= 50) return 2.0;
+  if (voteCount >= 20) return 1.75;
+  if (voteCount >= 10) return 1.5;
+  if (voteCount >= 5)  return 1.25;
+  return 1.0;
 }
 
 function communityScore(votes) {
-  if (votes.total === 0) return { score: 0, confidence: 0, detail: 'No community votes yet', verdict: 'unrated' };
-  const safeRatio = votes.safe / votes.total;
-  const unsafeRatio = votes.unsafe / votes.total;
-  const suspiciousRatio = votes.suspicious / votes.total;
+  const wtotal = votes.wsafe + votes.wsuspicious + votes.wunsafe;
+
+  if (wtotal === 0 || votes.total < 2) {
+    // Need at least 2 votes before community signal kicks in
+    return { 
+      score: 0, 
+      confidence: 0, 
+      detail: votes.total === 1 
+        ? '1 community vote (need 2+ for signal to activate)' 
+        : 'No community votes yet',
+      verdict: 'unrated',
+      breakdown: votes,
+    };
+  }
+
+  const safeRatio      = votes.wsafe       / wtotal;
+  const unsafeRatio    = votes.wunsafe     / wtotal;
+  const suspiciousRatio = votes.wsuspicious / wtotal;
+
+  // Confidence grows with vote count, plateaus at 10 votes
   const confidence = Math.min(100, votes.total * 10);
+
+  // Thresholds: need clear majority (60%+) for strong signals
   let score, verdict;
-  if (unsafeRatio > 0.5) { score = 92; verdict = 'community_unsafe'; }
-  else if (suspiciousRatio > 0.4) { score = 65; verdict = 'community_suspicious'; }
-  else if (safeRatio > 0.6) { score = 0; verdict = 'community_safe'; }
-  else { score = 30; verdict = 'community_mixed'; }
-  return { score, confidence, detail: `Community: ${votes.safe} safe, ${votes.suspicious} suspicious, ${votes.unsafe} unsafe (${votes.total} votes)`, verdict };
+  if (unsafeRatio >= 0.6) {
+    score = 88 + Math.min(10, votes.total);  // grows with more votes, max 98
+    verdict = 'community_unsafe';
+  } else if (unsafeRatio >= 0.4) {
+    score = 65;
+    verdict = 'community_suspicious';
+  } else if (safeRatio >= 0.6) {
+    score = 0;
+    verdict = 'community_safe';
+  } else if (safeRatio >= 0.4) {
+    score = 10;
+    verdict = 'community_leaning_safe';
+  } else {
+    score = 30;
+    verdict = 'community_mixed';
+  }
+
+  return {
+    score,
+    confidence,
+    detail: `${votes.total} vote${votes.total !== 1 ? 's' : ''}: ${votes.safe} safe, ${votes.suspicious} suspicious, ${votes.unsafe} unsafe`,
+    verdict,
+    breakdown: {
+      safe: votes.safe, suspicious: votes.suspicious, unsafe: votes.unsafe,
+      total: votes.total,
+      weighted: { safe: votes.wsafe.toFixed(1), suspicious: votes.wsuspicious.toFixed(1), unsafe: votes.wunsafe.toFixed(1) },
+    },
+  };
+}
+
+// ─── Vote handler ─────────────────────────────────────────────────────────────
+
+async function handleVote(request, env) {
+  const { domain, vote, userId } = await request.json();
+
+  if (!domain || !['safe', 'suspicious', 'unsafe'].includes(vote)) {
+    return jsonResp({ error: 'Need domain + vote (safe|suspicious|unsafe)' }, 400);
+  }
+
+  const hostname = domain.toLowerCase().replace(/^www\./, '').trim();
+  const key = `votes:${hostname}`;
+  
+  // Load existing votes
+  const existing = await env.COMMUNITY_VOTES.get(key, 'json') || {
+    safe: 0, suspicious: 0, unsafe: 0,
+    wsafe: 0, wsuspicious: 0, wunsafe: 0,
+    total: 0, voters: {}
+  };
+
+  const uid = userId || 'anon';
+
+  // Load voter history to determine weight
+  const voterKey = `voter:${uid}`;
+  const voterData = await env.COMMUNITY_VOTES.get(voterKey, 'json') || { voteCount: 0, votes: {} };
+  const weight = voterWeight(voterData.voteCount);
+
+  // Reverse previous vote for this domain if exists
+  const previousVote = existing.voters[uid];
+  if (previousVote) {
+    existing[previousVote] = Math.max(0, existing[previousVote] - 1);
+    existing[`w${previousVote}`] = Math.max(0, (existing[`w${previousVote}`] || 0) - (voterData.votes[hostname]?.weight || 1));
+    existing.total = Math.max(0, existing.total - 1);
+  }
+
+  // Apply new vote
+  existing[vote]++;
+  existing[`w${vote}`] = (existing[`w${vote}`] || 0) + weight;
+  existing.total++;
+  existing.voters[uid] = vote;
+
+  // Save updated votes
+  await env.COMMUNITY_VOTES.put(key, JSON.stringify(existing));
+
+  // Update voter history (so their future votes get correct weight)
+  if (uid !== 'anon') {
+    voterData.voteCount = (voterData.voteCount || 0) + (previousVote ? 0 : 1); // Only increment for new votes
+    voterData.votes[hostname] = { vote, weight };
+    await env.COMMUNITY_VOTES.put(voterKey, JSON.stringify(voterData), { expirationTtl: 31536000 }); // 1 year
+  }
+
+  // Bust the domain analysis cache so next fetch reflects new vote
+  await env.DOMAIN_CACHE.delete(`v2:${hostname}`);
+
+  return jsonResp({
+    success: true,
+    domain: hostname,
+    yourWeight: weight,
+    votes: {
+      safe: existing.safe,
+      suspicious: existing.suspicious,
+      unsafe: existing.unsafe,
+      total: existing.total,
+    },
+  });
 }
 
 // ─── Workers AI ─────────────────────────────────────────────────────────────
@@ -333,56 +456,81 @@ function smartFallback(heuristics, overrides) {
 // ─── Scoring engine ─────────────────────────────────────────────────────────
 
 function computeScore(heuristics, aiResult, community, overrides) {
-  // Combo overrides short-circuit scoring — always critical
+  // Combo overrides always win
   if (overrides.some(o => o.level === 'critical')) {
     return { trustScore: 4, riskScore: 96, verdict: 'dangerous', action: 'block' };
   }
 
   const weights = {
-    brandSimilarity: 0.30, // Increased — brand impersonation is the #1 signal
-    tld: 0.18,             // Increased — TLD is highly predictive
+    brandSimilarity: 0.30,
+    tld: 0.18,
     entropy: 0.10,
     subdomain: 0.10,
     specialChars: 0.05,
     length: 0.05,
-    ai: 0.22,              // AI gets significant weight when available
+    ai: 0.22,
   };
 
   const aiScoreMap = { low: 0, medium: 45, high: 80, critical: 97, unknown: 40 };
   const aiScore = aiScoreMap[aiResult.risk] || 40;
 
-  // Community modifies final score if confidence is high enough
+  // Community adjusts base risk score directly if confidence is high enough
   let communityAdjust = 0;
-  if (community.confidence >= 30) {
-    communityAdjust = (community.score - 50) * 0.15; // +/- 7.5 max adjustment
+  if (community.confidence >= 20) {
+    // Scale adjustment by confidence (max ±15 points at full confidence)
+    const adjustScale = (community.confidence / 100) * 15;
+    if (community.verdict === 'community_unsafe')       communityAdjust = +adjustScale;
+    else if (community.verdict === 'community_suspicious') communityAdjust = +adjustScale * 0.5;
+    else if (community.verdict === 'community_safe')    communityAdjust = -adjustScale;
+    else if (community.verdict === 'community_leaning_safe') communityAdjust = -adjustScale * 0.4;
   }
 
   const baseRisk =
     heuristics.brandSimilarity.score * weights.brandSimilarity +
-    heuristics.tld.score * weights.tld +
-    heuristics.entropy.score * weights.entropy +
-    heuristics.subdomain.score * weights.subdomain +
-    heuristics.specialChars.score * weights.specialChars +
-    heuristics.length.score * weights.length +
-    aiScore * weights.ai;
+    heuristics.tld.score             * weights.tld +
+    heuristics.entropy.score         * weights.entropy +
+    heuristics.subdomain.score       * weights.subdomain +
+    heuristics.specialChars.score    * weights.specialChars +
+    heuristics.length.score          * weights.length +
+    aiScore                          * weights.ai;
 
-  const riskScore = Math.round(Math.min(100, baseRisk + communityAdjust));
+  const riskScore  = Math.round(Math.min(100, Math.max(0, baseRisk + communityAdjust)));
   const trustScore = 100 - riskScore;
 
-  // Stricter thresholds — bias toward safety
   let verdict, action;
-  if (trustScore >= 75) { verdict = 'trusted'; action = 'allow'; }
+  if      (trustScore >= 75) { verdict = 'trusted';     action = 'allow'; }
   else if (trustScore >= 58) { verdict = 'likely_safe'; action = 'allow'; }
-  else if (trustScore >= 42) { verdict = 'caution'; action = 'warn'; }
-  else if (trustScore >= 22) { verdict = 'suspicious'; action = 'block'; }
-  else { verdict = 'dangerous'; action = 'block'; }
+  else if (trustScore >= 42) { verdict = 'caution';     action = 'warn';  }
+  else if (trustScore >= 22) { verdict = 'suspicious';  action = 'block'; }
+  else                       { verdict = 'dangerous';   action = 'block'; }
 
   // AI block recommendation upgrades warn → block
-  if (aiResult.recommendation === 'block' && action === 'warn') action = 'block';
+  if (aiResult.recommendation === 'block' && action === 'warn') {
+    action = 'block';
+  }
 
-  // Strong community consensus can shift one level
-  if (community.verdict === 'community_safe' && community.confidence >= 60 && action === 'block') action = 'warn';
-  if (community.verdict === 'community_unsafe' && community.confidence >= 60 && action === 'allow') action = 'warn';
+  // ── Community action overrides (requires 60%+ weighted majority + 20% confidence) ──
+
+  const strongConsensus = community.confidence >= 20;
+
+  if (strongConsensus) {
+    if (community.verdict === 'community_unsafe' || community.verdict === 'community_suspicious') {
+      // Unsafe community consensus:
+      //   allow  → warn  (community says it's unsafe but AI/heuristics say allow)
+      //   warn   → block (community pushes a warn into a block)
+      //   block stays block
+      if      (action === 'allow') action = 'warn';
+      else if (action === 'warn')  action = 'block';
+    }
+
+    if (community.verdict === 'community_safe' || community.verdict === 'community_leaning_safe') {
+      // Safe community consensus:
+      //   block → warn  (community disputes the block — still shows warning, doesn't silently allow)
+      //   warn stays warn (community can't fully clear a warning without high confidence)
+      //   allow stays allow
+      if (action === 'block' && community.confidence >= 50) action = 'warn';
+    }
+  }
 
   return { trustScore, riskScore, verdict, action };
 }
@@ -446,27 +594,6 @@ async function handleAnalyze(request, env) {
   return jsonResp(result);
 }
 
-async function handleVote(request, env) {
-  const { domain, vote, userId } = await request.json();
-  if (!domain || !['safe', 'suspicious', 'unsafe'].includes(vote)) {
-    return jsonResp({ error: 'Need domain + vote (safe|suspicious|unsafe)' }, 400);
-  }
-  const hostname = domain.toLowerCase().replace(/^www\./, '').trim();
-  const key = `votes:${hostname}`;
-  const existing = await env.COMMUNITY_VOTES.get(key, 'json') || { safe: 0, suspicious: 0, unsafe: 0, total: 0, voters: {} };
-
-  const uid = userId || 'anon_' + Math.random().toString(36).slice(2, 8);
-  const prev = existing.voters?.[uid];
-  if (prev) { existing[prev] = Math.max(0, existing[prev] - 1); existing.total = Math.max(0, existing.total - 1); }
-  existing[vote]++; existing.total++;
-  existing.voters = existing.voters || {};
-  existing.voters[uid] = vote;
-
-  await env.COMMUNITY_VOTES.put(key, JSON.stringify(existing));
-  await env.DOMAIN_CACHE.delete(`v2:${hostname}`); // Bust cache on new vote
-
-  return jsonResp({ success: true, domain: hostname, votes: { safe: existing.safe, suspicious: existing.suspicious, unsafe: existing.unsafe, total: existing.total } });
-}
 
 async function handleGetVotes(request, env) {
   const url = new URL(request.url);

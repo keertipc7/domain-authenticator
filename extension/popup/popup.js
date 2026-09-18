@@ -105,42 +105,92 @@ async function restoreVoteButtonState(domain) {
 
 // ─── Vote buttons ─────────────────────────────────────────────────────────────
 
+function renderVotes(community) {
+  const total = community?.breakdown?.total || community?.total || 0;
+  const safe       = community?.breakdown?.safe       || community?.safe       || 0;
+  const suspicious = community?.breakdown?.suspicious || community?.suspicious || 0;
+  const unsafe     = community?.breakdown?.unsafe     || community?.unsafe     || 0;
+  const wtotal = Math.max(total, 1);
+
+  // Confidence label
+  let confidenceText = '';
+  if (total === 0) confidenceText = 'No votes yet — be the first';
+  else if (total === 1) confidenceText = '1 vote — need 2+ to activate signal';
+  else if (total < 5)   confidenceText = `${total} votes — building confidence`;
+  else                  confidenceText = `${total} votes · ${community.confidence || 0}% confidence`;
+
+  $('vote-bars').innerHTML = `
+    <div class="vote-confidence">${confidenceText}</div>
+    ${renderBar('Safe',       safe,       total, 'safe')}
+    ${renderBar('Suspicious', suspicious, total, 'suspicious')}
+    ${renderBar('Unsafe',     unsafe,     total, 'unsafe')}
+    ${community.verdict && community.verdict !== 'unrated' ? `
+      <div class="vote-consensus">
+        Community verdict: <span class="verdict-${community.verdict}">${verdictLabel(community.verdict)}</span>
+        ${community.verdict === 'community_safe' ? '→ can downgrade a block to warn' : ''}
+        ${community.verdict === 'community_unsafe' ? '→ can upgrade an allow to warn' : ''}
+      </div>` : ''}
+  `;
+}
+
+function renderBar(label, count, total, type) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return `
+    <div class="vote-bar-row">
+      <span class="vote-bar-label">${label}</span>
+      <div class="vote-bar-track">
+        <div class="vote-bar-fill vote-bar-fill-${type}" style="width:${pct}%"></div>
+      </div>
+      <span class="vote-bar-count">${count}</span>
+    </div>`;
+}
+
+function verdictLabel(v) {
+  return {
+    community_safe:         'Mostly safe',
+    community_leaning_safe: 'Leaning safe',
+    community_mixed:        'Mixed signals',
+    community_suspicious:   'Suspicious',
+    community_unsafe:       'Unsafe',
+    unrated:                'Unrated',
+  }[v] || v;
+}
+
+// Vote buttons
 document.querySelectorAll('.vote-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (!currentData) return;
     const vote = btn.dataset.vote;
     const domain = currentData.domain;
 
-    // Immediate visual feedback
+    // Optimistic UI — show immediately
     document.querySelectorAll('.vote-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    $('vote-feedback').textContent = 'Submitting vote…';
-    show($('vote-feedback'));
+    btn.textContent = '✓ ' + btn.textContent.replace('✓ ', '');
 
-    // Save vote locally so button stays highlighted on reopen
+    // Persist vote choice locally (survives popup close)
     const stored = await chrome.storage.local.get('my_votes');
     const myVotes = stored.my_votes || {};
     myVotes[domain] = vote;
     await chrome.storage.local.set({ my_votes: myVotes });
 
-    // Submit vote
-    chrome.runtime.sendMessage({ type: 'SUBMIT_VOTE', domain, vote }, async (resp) => {
-      if (resp?.success || resp?.votes) {
-        $('vote-feedback').textContent = `Vote recorded: ${vote}. Refreshing…`;
+    $('vote-feedback').textContent = 'Submitting…';
+    show($('vote-feedback'));
 
-        // ── KEY FIX: fetch fresh analysis so bars reflect new vote ──
+    chrome.runtime.sendMessage({ type: 'SUBMIT_VOTE', domain, vote }, async (resp) => {
+      if (resp?.success) {
+        const weight = resp.yourWeight || 1;
+        $('vote-feedback').textContent = weight > 1
+          ? `Vote recorded (weight: ${weight}x — thanks for being an active reviewer!)`
+          : 'Vote recorded — thank you!';
+
+        // Refresh full analysis to get updated community object
         chrome.runtime.sendMessage({ type: 'GET_FRESH_ANALYSIS', domain }, (fresh) => {
-          if (fresh && fresh.community) {
+          if (fresh?.community) {
             renderVotes(fresh.community);
-            currentData = fresh; // Update local state
-            $('vote-feedback').textContent = `Voted "${vote}" — thanks for helping the community!`;
-            setTimeout(() => hide($('vote-feedback')), 3000);
-          } else {
-            // Fallback: update bars with vote response counts directly
-            if (resp.votes) renderVotes(resp.votes);
-            $('vote-feedback').textContent = `Voted "${vote}"!`;
-            setTimeout(() => hide($('vote-feedback')), 3000);
+            currentData = fresh;
           }
+          setTimeout(() => hide($('vote-feedback')), 4000);
         });
       } else {
         $('vote-feedback').textContent = 'Vote failed — try again.';
@@ -150,47 +200,44 @@ document.querySelectorAll('.vote-btn').forEach(btn => {
   });
 });
 
-// ─── Report ──────────────────────────────────────────────────────────────────
-
-$('report-btn').addEventListener('click', () => {
-  const form = $('report-form');
-  form.classList.contains('hidden') ? show(form) : hide(form);
-});
-
-$('report-submit').addEventListener('click', () => {
-  if (!currentData) return;
-  const expected = $('report-expected').value;
-  const comment = $('report-comment').value;
-  if (!expected) { $('report-expected').style.borderColor = '#ef4444'; return; }
-
-  chrome.runtime.sendMessage({
-    type: 'REPORT_MISTAKE',
-    data: { domain: currentData.domain, expected_verdict: expected, actual_verdict: currentData.verdict, comment },
-  }, (resp) => {
-    if (resp?.success) {
-      hide($('report-form'));
-      $('report-btn').textContent = '✓ Report submitted — thank you!';
-      $('report-btn').disabled = true;
-    }
-  });
-});
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
-
-chrome.runtime.sendMessage({ type: 'GET_ANALYSIS' }, (data) => {
-  if (chrome.runtime.lastError || data?.error) {
-    hide($('state-loading'));
-    $('error-msg').textContent = data?.error || chrome.runtime.lastError?.message || 'Error';
-    show($('state-error'));
-    return;
+// Restore vote button state when popup opens
+async function restoreVoteButtonState(domain) {
+  const stored = await chrome.storage.local.get('my_votes');
+  const myVote = (stored.my_votes || {})[domain];
+  if (myVote) {
+    document.querySelectorAll('.vote-btn').forEach(b => {
+      if (b.dataset.vote === myVote) {
+        b.classList.add('active');
+        b.textContent = '✓ ' + b.textContent.replace('✓ ', '');
+      }
+    });
   }
-  if (data?.trustScore !== undefined) render(data);
-});
+}
 
-$('retry-btn').addEventListener('click', () => {
-  hide($('state-error'));
-  show($('state-loading'));
-  chrome.runtime.sendMessage({ type: 'GET_ANALYSIS' }, (data) => {
-    if (data?.trustScore !== undefined) render(data);
-  });
-});
+/* Add these to extension/popup/popup.css */
+
+/* Vote confidence line */
+.vote-confidence {
+  font-size: 11px;
+  color: var(--t2);
+  margin-bottom: 8px;
+  font-style: italic;
+}
+
+/* Community consensus line */
+.vote-consensus {
+  font-size: 11px;
+  color: var(--t2);
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--b);
+}
+
+.verdict-community_safe         { color: var(--gn); font-weight: 500; }
+.verdict-community_leaning_safe { color: var(--bl); font-weight: 500; }
+.verdict-community_mixed        { color: var(--t2); font-weight: 500; }
+.verdict-community_suspicious   { color: var(--am); font-weight: 500; }
+.verdict-community_unsafe       { color: var(--rd); font-weight: 500; }
+
+/* Active vote button — bolder border */
+.vote-btn.active { border-width: 2px; font-weight: 700; }
