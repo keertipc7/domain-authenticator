@@ -33,7 +33,7 @@ fi
 cd ..
 
 echo "Updating extension files..."
-sed -i "s|https://domain-authenticator.YOUR_SUBDOMAIN.workers.dev|$WORKER_URL|g" extension/background.js
+sed -i "s|https://domain-authenticator.keertipc7.workers.dev|$WORKER_URL|g" extension/background.js
 echo "Done! Worker: $WORKER_URL"
 echo ""
 echo "Next: chrome://extensions → Developer Mode → Load unpacked → select extension/"

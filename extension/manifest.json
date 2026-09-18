@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Domain Authenticator by Cloudflare",
+  "name": "Domain Authenticator",
   "description": "AI-powered domain trust scoring with community verification. Blocks suspicious sites before they can harm you.",
   "version": "2.0.0",
   "permissions": [

@@ -1,6 +1,6 @@
 /**
- * Background service worker v2.1
- * Fix: clear in-memory cache on vote so community counts update immediately
+ * Background service worker v2.2
+ * Fix: robust GET_ANALYSIS handler — falls back through multiple data sources
  */
 
 const WORKER_URL = 'https://domain-authenticator.keertipc7.workers.dev';
@@ -12,7 +12,7 @@ const BADGE_COLORS = {
 
 const SKIP_PROTOCOLS = ['chrome:', 'chrome-extension:', 'about:', 'edge:', 'brave:', 'file:', 'devtools:'];
 
-// ─── In-memory cache ─────────────────────────────────────────────────────────
+// ─── In-memory cache ──────────────────────────────────────────────────────────
 
 const analysisCache = new Map();
 const MEMORY_CACHE_TTL = 5 * 60 * 1000;
@@ -26,24 +26,20 @@ function getCached(domain) {
 
 function setCache(domain, data) {
   analysisCache.set(domain, { data, time: Date.now() });
-  if (analysisCache.size > 500) {
-    const oldest = analysisCache.keys().next().value;
-    analysisCache.delete(oldest);
-  }
+  if (analysisCache.size > 500) analysisCache.delete(analysisCache.keys().next().value);
 }
 
 function clearCache(domain) {
   analysisCache.delete(domain);
 }
 
-// ─── API ─────────────────────────────────────────────────────────────────────
+// ─── API call ─────────────────────────────────────────────────────────────────
 
 async function analyzeDomain(domain, force = false) {
   if (!force) {
     const cached = getCached(domain);
     if (cached) return cached;
   }
-
   try {
     const resp = await fetch(`${WORKER_URL}/analyze`, {
       method: 'POST',
@@ -54,35 +50,36 @@ async function analyzeDomain(domain, force = false) {
     const data = await resp.json();
     setCache(domain, data);
     return data;
-  } catch {
+  } catch (e) {
+    console.error('analyzeDomain error:', e);
     return null;
   }
 }
 
-// ─── Badge ───────────────────────────────────────────────────────────────────
+// ─── Badge ────────────────────────────────────────────────────────────────────
 
 function updateBadge(tabId, result) {
   if (!result) {
-    chrome.action.setBadgeText({ tabId, text: '...' });
+    chrome.action.setBadgeText({ tabId, text: '?' });
     chrome.action.setBadgeBackgroundColor({ tabId, color: '#6b7280' });
     return;
   }
-  chrome.action.setBadgeText({ tabId, text: result.trustScore.toString() });
+  chrome.action.setBadgeText({ tabId, text: String(result.trustScore) });
   chrome.action.setBadgeBackgroundColor({ tabId, color: BADGE_COLORS[result.verdict] || '#6b7280' });
 }
 
-// ─── Navigation ──────────────────────────────────────────────────────────────
+// ─── Navigation ───────────────────────────────────────────────────────────────
 
 chrome.webNavigation.onCompleted.addListener(async (details) => {
   if (details.frameId !== 0) return;
   try {
     const url = new URL(details.url);
     if (SKIP_PROTOCOLS.some(p => url.protocol.startsWith(p))) return;
-    if (url.hostname === 'blocked.domain-authenticator') return;
 
     const domain = url.hostname.replace(/^www\./, '');
     const overrides = await chrome.storage.local.get('user_overrides');
     const userOverrides = overrides.user_overrides || {};
+
     if (userOverrides[domain] === 'safe') {
       updateBadge(details.tabId, { trustScore: 95, verdict: 'trusted' });
       return;
@@ -95,32 +92,42 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
     if (!result) return;
 
     updateBadge(details.tabId, result);
-    await chrome.storage.session.set({ [`result:${details.tabId}`]: result });
+
+    // Store with BOTH the tab-specific key and a domain key for fallback
+    await chrome.storage.session.set({
+      [`result:${details.tabId}`]: result,
+      [`domain:${domain}`]: result,
+    });
 
     if (result.action === 'block' && userOverrides[domain] !== 'safe') {
       try { chrome.tabs.sendMessage(details.tabId, { type: 'BLOCK_PAGE', data: result }); } catch {}
     } else if (result.verdict === 'caution') {
       try { chrome.tabs.sendMessage(details.tabId, { type: 'WARN_BANNER', data: result }); } catch {}
     }
-  } catch {}
+  } catch (e) {
+    console.error('onCompleted error:', e);
+  }
 });
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   try {
     const tab = await chrome.tabs.get(tabId);
-    if (!tab.url) return;
+    if (!tab?.url) return;
     const url = new URL(tab.url);
     if (SKIP_PROTOCOLS.some(p => url.protocol.startsWith(p))) return;
     const domain = url.hostname.replace(/^www\./, '');
     const cached = getCached(domain);
     if (cached) {
       updateBadge(tabId, cached);
-      await chrome.storage.session.set({ [`result:${tabId}`]: cached });
+      await chrome.storage.session.set({
+        [`result:${tabId}`]: cached,
+        [`domain:${domain}`]: cached,
+      });
     }
   } catch {}
 });
 
-// ─── Context menu ────────────────────────────────────────────────────────────
+// ─── Context menu ──────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({ id: 'analyze-link', title: 'Analyze link safety', contexts: ['link'] });
@@ -129,57 +136,133 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   let domain;
-  if (info.menuItemId === 'analyze-link' && info.linkUrl) domain = new URL(info.linkUrl).hostname.replace(/^www\./, '');
-  else if (info.menuItemId === 'analyze-page' && tab.url) domain = new URL(tab.url).hostname.replace(/^www\./, '');
-  if (!domain) return;
+  if (info.menuItemId === 'analyze-link' && info.linkUrl) {
+    try { domain = new URL(info.linkUrl).hostname.replace(/^www\./, ''); } catch {}
+  } else if (info.menuItemId === 'analyze-page' && tab?.url) {
+    try { domain = new URL(tab.url).hostname.replace(/^www\./, ''); } catch {}
+  }
+  if (!domain || !tab) return;
   const result = await analyzeDomain(domain);
   if (result) {
-    await chrome.storage.session.set({ [`result:${tab.id}`]: result, contextAnalysis: result });
+    await chrome.storage.session.set({ [`result:${tab.id}`]: result, [`domain:${domain}`]: result });
     try { chrome.tabs.sendMessage(tab.id, { type: 'CONTEXT_RESULT', data: result }); } catch {}
   }
 });
 
-// ─── Message handler ─────────────────────────────────────────────────────────
+// ─── Message handler ───────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
+  // ── GET_ANALYSIS: popup requesting current tab's analysis ──
   if (msg.type === 'GET_ANALYSIS') {
     (async () => {
       try {
-        const tab = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-        if (!tab?.url) { sendResponse({ error: 'No active tab' }); return; }
-        const url = new URL(tab.url);
-        if (SKIP_PROTOCOLS.some(p => url.protocol.startsWith(p))) { sendResponse({ error: 'Not a web page' }); return; }
+        // Step 1: get active tab
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.url) {
+          sendResponse({ error: 'No active tab found' });
+          return;
+        }
+
+        let url;
+        try { url = new URL(tab.url); } catch {
+          sendResponse({ error: 'Could not parse tab URL' });
+          return;
+        }
+
+        if (SKIP_PROTOCOLS.some(p => url.protocol.startsWith(p))) {
+          sendResponse({ error: 'Not a web page — navigate to a website first' });
+          return;
+        }
+
         const domain = url.hostname.replace(/^www\./, '');
 
-        // Check session storage first
-        const stored = await chrome.storage.session.get(`result:${tab.id}`);
-        if (stored[`result:${tab.id}`]) { sendResponse(stored[`result:${tab.id}`]); return; }
+        // Step 2: check in-memory cache first (fastest)
+        const memCached = getCached(domain);
+        if (memCached) {
+          sendResponse(memCached);
+          return;
+        }
 
+        // Step 3: check session storage by tab ID
+        try {
+          const byTab = await chrome.storage.session.get(`result:${tab.id}`);
+          if (byTab[`result:${tab.id}`]) {
+            const result = byTab[`result:${tab.id}`];
+            setCache(domain, result);
+            sendResponse(result);
+            return;
+          }
+        } catch {}
+
+        // Step 4: check session storage by domain (fallback if tab ID changed)
+        try {
+          const byDomain = await chrome.storage.session.get(`domain:${domain}`);
+          if (byDomain[`domain:${domain}`]) {
+            const result = byDomain[`domain:${domain}`];
+            setCache(domain, result);
+            sendResponse(result);
+            return;
+          }
+        } catch {}
+
+        // Step 5: fetch fresh from Worker
         const result = await analyzeDomain(domain);
         if (result) {
-          await chrome.storage.session.set({ [`result:${tab.id}`]: result });
+          await chrome.storage.session.set({
+            [`result:${tab.id}`]: result,
+            [`domain:${domain}`]: result,
+          });
           sendResponse(result);
         } else {
-          sendResponse({ error: 'Analysis failed' });
+          sendResponse({ error: `Could not analyze ${domain} — check your Worker URL is correct` });
         }
-      } catch (e) { sendResponse({ error: e.message }); }
+      } catch (e) {
+        console.error('GET_ANALYSIS error:', e);
+        sendResponse({ error: e.message || 'Unknown error in background script' });
+      }
+    })();
+    return true; // Keep message channel open for async
+  }
+
+  // ── GET_FRESH_ANALYSIS: popup requesting after a vote ──
+  if (msg.type === 'GET_FRESH_ANALYSIS') {
+    (async () => {
+      try {
+        const result = await analyzeDomain(msg.domain, true);
+        if (result) {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab) {
+            await chrome.storage.session.set({
+              [`result:${tab.id}`]: result,
+              [`domain:${msg.domain}`]: result,
+            });
+          }
+          sendResponse(result);
+        } else {
+          sendResponse({ error: 'Refresh failed' });
+        }
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
     })();
     return true;
   }
 
+  // ── OVERRIDE_DOMAIN: user clicked "proceed anyway" on block page ──
   if (msg.type === 'OVERRIDE_DOMAIN') {
     (async () => {
-      const overrides = await chrome.storage.local.get('user_overrides');
-      const all = overrides.user_overrides || {};
+      const stored = await chrome.storage.local.get('user_overrides');
+      const all = stored.user_overrides || {};
       all[msg.domain] = msg.tag;
       await chrome.storage.local.set({ user_overrides: all });
-      clearCache(msg.domain); // Clear memory cache
+      clearCache(msg.domain);
       sendResponse({ success: true });
     })();
     return true;
   }
 
+  // ── SUBMIT_VOTE ──
   if (msg.type === 'SUBMIT_VOTE') {
     (async () => {
       try {
@@ -194,34 +277,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         });
         const data = await resp.json();
 
-        // ── KEY FIX: clear both caches so next GET_ANALYSIS fetches fresh ──
+        // Bust all caches so fresh analysis picks up new vote
         clearCache(msg.domain);
-        const tab = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-        if (tab) await chrome.storage.session.remove(`result:${tab.id}`);
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab) await chrome.storage.session.remove([`result:${tab.id}`, `domain:${msg.domain}`]);
+        } catch {}
 
         sendResponse(data);
-      } catch (e) { sendResponse({ error: e.message }); }
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
     })();
     return true;
   }
 
-  if (msg.type === 'GET_FRESH_ANALYSIS') {
-    // Called by popup after voting to refresh community counts
-    (async () => {
-      try {
-        const result = await analyzeDomain(msg.domain, true); // force=true
-        if (result) {
-          const tab = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-          if (tab) await chrome.storage.session.set({ [`result:${tab.id}`]: result });
-          sendResponse(result);
-        } else {
-          sendResponse({ error: 'Refresh failed' });
-        }
-      } catch (e) { sendResponse({ error: e.message }); }
-    })();
-    return true;
-  }
-
+  // ── REPORT_MISTAKE ──
   if (msg.type === 'REPORT_MISTAKE') {
     (async () => {
       try {
@@ -231,7 +302,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           body: JSON.stringify(msg.data),
         });
         sendResponse(await resp.json());
-      } catch (e) { sendResponse({ error: e.message }); }
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
     })();
     return true;
   }

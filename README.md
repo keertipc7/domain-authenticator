@@ -1,12 +1,10 @@
 # Domain Authenticator
 
-> Real-time domain trust scoring — Chrome extension powered by Cloudflare Workers AI
+> AI-powered domain trust scoring for your browser
 
-A Chrome extension that analyzes every domain you visit, blocks dangerous sites before you interact with them, and shows a detailed AI-powered trust breakdown. Built on Cloudflare's edge infrastructure — Workers, Workers AI, and Workers KV.
+A Chrome extension that analyzes every domain you visit in real time, blocks dangerous sites before you interact with them, and shows a detailed trust breakdown — powered by AI running on the edge.
 
-![Cloudflare Workers AI](https://img.shields.io/badge/Cloudflare-Workers%20AI-F6821F?logo=cloudflare&logoColor=white)
-![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)
-![Free Tier](https://img.shields.io/badge/Cloudflare-Free%20Tier-10B981)
+**Live demo → [domain-authenticator-demo.pages.dev](https://domain-authenticator-demo.pages.dev)**
 
 ---
 
@@ -24,57 +22,86 @@ A Chrome extension that analyzes every domain you visit, blocks dangerous sites 
 
 ---
 
-## Architecture
+## Try the live demo
+
+Visit **[domain-authenticator-demo.pages.dev](https://domain-authenticator-demo.pages.dev)** to test the scoring engine directly in your browser — no installation needed. Try these:
+
+| Domain | Expected result |
+|---|---|
+| `github.com` | Trusted — 98 |
+| `g00gle.xyz` | Dangerous — blocked |
+| `paypal-secure.top` | Dangerous — blocked |
+| `micr0soft-login.buzz` | Dangerous — blocked |
+| `bbc.com` | Likely safe |
+
+---
+
+## Install the extension
+
+The backend is already deployed and running. You only need to load the extension into Chrome.
+
+**1. Clone the repo**
+
+```bash
+git clone https://github.com/keertipc7/domain-authenticator.git
+```
+
+**2. Open Chrome extensions**
+
+Go to `chrome://extensions` in your browser.
+
+**3. Enable Developer mode**
+
+Toggle **Developer mode** on — top right corner.
+
+**4. Load the extension**
+
+Click **Load unpacked** → select the `extension/` folder from the cloned repo.
+
+**5. Browse normally**
+
+The shield icon appears in your toolbar. Navigate to any site — dangerous domains are blocked automatically, suspicious ones get a warning banner. Click the icon for the full analysis.
+
+---
+
+## How it works
 
 ```
-┌─────────────────────────────────────────┐
-│         Chrome Extension (MV3)          │
-│                                         │
-│  background.js  ──────── content.js     │
-│  (service worker)        (block/warn)   │
-│       │                                 │
-│  popup/popup.js                         │
-│  (analysis dashboard)                   │
-└──────────────┬──────────────────────────┘
-               │ POST /analyze
-               ▼
-┌─────────────────────────────────────────┐
-│       Cloudflare Worker (Edge API)      │
-│                                         │
-│  ┌─────────────────┐  ┌──────────────┐ │
-│  │ Heuristic engine │  │ Workers AI   │ │
-│  │ - Digit sub      │  │ Llama 3.1 8B │ │
-│  │ - Typosquatting  │  │ (semantic    │ │
-│  │ - TLD risk       │  │  analysis)   │ │
-│  │ - Entropy        │  └──────────────┘ │
-│  │ - Combo override │                   │
-│  └─────────────────┘                   │
-│                                         │
-│  ┌─────────────────┐  ┌──────────────┐ │
-│  │  DOMAIN_CACHE   │  │  COMMUNITY   │ │
-│  │  Workers KV     │  │  VOTES KV    │ │
-│  │  (6h TTL)       │  │              │ │
-│  └─────────────────┘  └──────────────┘ │
-└─────────────────────────────────────────┘
+Chrome Extension (Manifest V3)
+       │
+       ▼
+Edge API (Cloudflare Worker)
+  ├── Heuristic engine
+  │     ├── Digit substitution detection  (g00gle → google)
+  │     ├── Brand similarity / typosquatting
+  │     ├── TLD risk classification
+  │     ├── Shannon entropy scoring
+  │     ├── Subdomain abuse detection
+  │     └── Combo signal overrides
+  │
+  ├── AI — Llama 3.1 8B
+  │     └── Semantic analysis + plain-English explanation
+  │
+  └── Edge cache + community votes
+        ├── Verdict cache (6h TTL, global)
+        └── Vote tallies per domain
 ```
 
 ---
 
 ## Scoring model
 
-The trust score (0–100) is computed from six heuristic signals plus AI inference:
-
 | Signal | Weight | What it catches |
 |---|---|---|
-| Brand similarity | 30% | Typosquatting, digit substitution (`g00gle`), contains-brand patterns |
-| Workers AI verdict | 22% | Semantic patterns heuristics miss |
-| TLD risk | 18% | `.xyz`, `.top`, `.buzz` and 30+ other high-abuse TLDs |
+| Brand similarity | 30% | Typosquatting, digit substitution, contains-brand patterns |
+| AI verdict | 22% | Semantic patterns heuristics miss |
+| TLD risk | 18% | High-abuse TLDs (.xyz, .top, .buzz and 30+ others) |
 | Entropy | 10% | DGA-generated random-looking domains |
-| Subdomain abuse | 10% | `paypal.com.evil.xyz` patterns |
-| Special characters | 5% | Hyphen/digit abuse |
+| Subdomain abuse | 10% | paypal.com.evil.xyz patterns |
+| Special characters | 5% | Hyphen and digit abuse |
 | Length | 5% | Unusually long domains |
 
-**Combo overrides** short-circuit the weighted average — digit substitution of a known brand, or brand impersonation + high-risk TLD, immediately forces `trustScore < 5` and `action: block` regardless of other signals.
+**Combo overrides** short-circuit the weighted average. Digit substitution of a known brand (e.g. `g00gle.xyz`) or brand impersonation on a high-risk TLD immediately forces `trustScore < 5` and `action: block`.
 
 ### Verdict thresholds
 
@@ -82,31 +109,22 @@ The trust score (0–100) is computed from six heuristic signals plus AI inferen
 |---|---|---|
 | 75–100 | Trusted | Allow |
 | 58–74 | Likely safe | Allow |
-| 42–57 | Caution | Warn (banner) |
+| 42–57 | Caution | Warn |
 | 22–41 | Suspicious | Block |
 | 0–21 | Dangerous | Block |
 
 ---
 
-## Community voting system
+## Community voting
 
-Every user gets a persistent anonymous ID stored in `chrome.storage.local`. Votes are stored in a dedicated `COMMUNITY_VOTES` KV namespace. Key behaviors:
+Every user gets a persistent anonymous ID. Votes are stored globally and feed back into scoring:
 
-- One vote per user per domain (can change vote)
-- Voting invalidates the KV cache so the next analysis reflects the new verdict
-- Community consensus can shift the action one level (strong safe consensus downgrades block → warn; strong unsafe consensus upgrades allow → warn)
-- Confidence scales with vote count — low-volume votes have minimal impact
-
----
-
-## Free tier feasibility
-
-| Resource | Free limit | Usage |
-|---|---|---|
-| Workers requests | 100K/day | ~50K (200 domains × 250 users) |
-| Workers AI | 10K neurons/day | ~5K (cached after first analysis) |
-| KV reads | 100K/day | ~45K (85%+ cache hit rate) |
-| KV writes | 1K/day | ~500 (only new/uncached domains) |
+- One vote per user per domain (vote can be changed)
+- Votes are weighted by reviewer activity — active reviewers carry more weight, capped at 2×
+- Minimum 2 votes before community signal activates
+- Strong unsafe consensus (60%+ weighted): warn → block, allow → warn
+- Strong safe consensus (60%+ weighted, 50%+ confidence): block → warn
+- Voting busts the cache so the next analysis reflects the new verdict immediately
 
 ---
 
@@ -114,31 +132,41 @@ Every user gets a persistent anonymous ID stored in `chrome.storage.local`. Vote
 
 ```
 ├── worker/
-│   ├── src/index.js        # Cloudflare Worker — full analysis engine
-│   ├── wrangler.toml       # Config — add your KV namespace IDs here
+│   ├── src/index.js        # Edge API — full analysis engine
+│   ├── wrangler.toml       # Worker config
 │   └── package.json
 ├── extension/
 │   ├── manifest.json       # Chrome Manifest V3
 │   ├── background.js       # Service worker — navigation, badge, blocking
 │   ├── content.js          # Block overlay + warning banner injection
 │   ├── content.css         # Injected UI styles
-│   ├── icons/              # Extension icons
+│   ├── icons/
 │   └── popup/
 │       ├── popup.html      # Analysis dashboard
 │       ├── popup.css
 │       └── popup.js
 └── docs/
-    └── index.html          # Live demo page (Cloudflare Pages)
+    └── index.html          # Live demo page
 ```
 
 ---
 
-## Deploy
+## Built with
+
+- Cloudflare Workers — edge API at 300+ global locations
+- Cloudflare Workers AI — Llama 3.1 8B for semantic domain analysis
+- Cloudflare Workers KV — global verdict cache and community votes
+- Cloudflare Pages — demo page hosting
+
+---
+
+<details>
+<summary>Deploy your own instance</summary>
 
 ### Prerequisites
 - Cloudflare account (free tier)
 - Node.js 18+
-- Wrangler CLI: `npm install -g wrangler` then `wrangler login`
+- `npm install -g wrangler` then `wrangler login`
 
 ### 1 — Create KV namespaces
 
@@ -148,17 +176,7 @@ wrangler kv namespace create "DOMAIN_CACHE"
 wrangler kv namespace create "COMMUNITY_VOTES"
 ```
 
-Copy both IDs into `worker/wrangler.toml`:
-
-```toml
-[[kv_namespaces]]
-binding = "DOMAIN_CACHE"
-id = "YOUR_CACHE_ID"
-
-[[kv_namespaces]]
-binding = "COMMUNITY_VOTES"
-id = "YOUR_VOTES_ID"
-```
+Paste both IDs into `worker/wrangler.toml`.
 
 ### 2 — Deploy the Worker
 
@@ -166,44 +184,18 @@ id = "YOUR_VOTES_ID"
 wrangler deploy
 ```
 
-Copy the Worker URL from the output (e.g. `https://domain-authenticator.abc123.workers.dev`).
-
 ### 3 — Update the extension
 
-Open `extension/background.js` and update line 7:
+In `extension/background.js` line 7, replace the `WORKER_URL` with your deployed Worker URL.
 
-```js
-const WORKER_URL = 'https://domain-authenticator.YOUR_ACTUAL_SUBDOMAIN.workers.dev';
-```
-
-### 4 — Load the extension in Chrome
-
-1. Go to `chrome://extensions`
-2. Enable **Developer mode** (top right)
-3. Click **Load unpacked** → select the `extension/` folder
-
-### 5 — Deploy the demo page
+### 4 — Deploy the demo page
 
 ```bash
 wrangler pages deploy docs/ --project-name=domain-authenticator-demo --branch=main
 ```
 
----
-
-## Live demo
-
-[domain-authenticator-demo.pages.dev](https://domain-authenticator-demo.pages.dev)
+</details>
 
 ---
 
-## Why this was built
-
-Cloudflare One secures the network layer (Gateway) and device layer (WARP + DEX). The browser is the missing third layer — where 90%+ of enterprise work happens. This prototype demonstrates:
-
-- **Browser-layer signals** that network-level inspection structurally cannot see (rendered DOM, digit substitution attacks, form action destinations)
-- **Edge-native AI inference** via Workers AI — sub-100ms analysis at 300+ global PoPs
-- **Community trust signals** as a feedback loop — one user's detection protects all users via KV global replication
-- **Policy integration thesis** — trust score as a Gateway policy condition alongside device posture and identity
-
----
-
+*[domain-authenticator-demo.pages.dev](https://domain-authenticator-demo.pages.dev)*
