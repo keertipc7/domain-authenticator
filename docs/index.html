@@ -3,360 +3,663 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Domain Authenticator — Cloudflare One Browser Extension</title>
+<title>Domain Authenticator</title>
 <style>
 :root {
-  --bg: #0d1117; --s1: #161b22; --s2: #1c2128;
-  --border: #30363d; --text: #e6edf3; --muted: #8b949e; --dim: #484f58;
-  --orange: #f6821f; --green: #10b981; --blue: #3b82f6;
-  --amber: #f59e0b; --red: #ef4444;
+  --bg:#0d1117;--s1:#161b22;--s2:#1c2128;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--dim:#484f58;
+  --orange:#f6821f;--green:#10b981;--blue:#3b82f6;
+  --amber:#f59e0b;--red:#ef4444;--purple:#8b5cf6;
 }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; line-height: 1.6; }
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;line-height:1.6;}
 
 /* Nav */
-nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; border-bottom: 1px solid var(--border); }
-.nav-logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
-.nav-logo svg { color: var(--orange); }
-.nav-links { display: flex; gap: 24px; }
-.nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color .15s; }
-.nav-links a:hover { color: var(--text); }
-.nav-cta { padding: 8px 18px; background: var(--orange); color: #fff; border-radius: 7px; font-size: 13px; font-weight: 600; text-decoration: none; transition: background .15s; }
-.nav-cta:hover { background: #e5740f; }
+nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 40px;border-bottom:1px solid var(--border);background:rgba(13,17,23,.92);backdrop-filter:blur(12px);}
+.nav-logo{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;color:var(--text);}
+.nav-logo svg{color:var(--orange);}
+.nav-links{display:flex;gap:28px;}
+.nav-links a{color:var(--muted);text-decoration:none;font-size:13px;transition:color .15s;}
+.nav-links a:hover{color:var(--text);}
+.nav-cta{padding:7px 18px;background:var(--orange);color:#fff;border-radius:7px;font-size:13px;font-weight:600;text-decoration:none;}
+.nav-cta:hover{background:#e5740f;}
+@media(max-width:640px){.nav-links{display:none;}.nav{padding:14px 20px;}}
+
+/* Sections */
+.section{max-width:900px;margin:0 auto;padding:72px 32px;}
+@media(max-width:640px){.section{padding:48px 20px;}}
+.section-tag{font-size:11px;font-weight:600;color:var(--orange);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;}
+h2{font-size:32px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px;line-height:1.2;}
+.section-sub{color:var(--muted);font-size:16px;margin-bottom:40px;max-width:620px;}
+.divider{border:none;border-top:1px solid var(--border);margin:0;}
 
 /* Hero */
-.hero { text-align: center; padding: 72px 32px 56px; max-width: 720px; margin: 0 auto; }
-.hero-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--orange); background: rgba(246,130,31,.1); border: 1px solid rgba(246,130,31,.2); padding: 4px 14px; border-radius: 20px; margin-bottom: 24px; }
-.hero h1 { font-size: 48px; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; margin-bottom: 16px; }
-.hero h1 span { color: var(--orange); }
-.hero p { font-size: 17px; color: var(--muted); max-width: 560px; margin: 0 auto 32px; }
-.hero-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-.btn { padding: 11px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; transition: all .15s; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--orange); color: #fff; }
-.btn-primary:hover { background: #e5740f; }
-.btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
-.btn-outline:hover { border-color: var(--muted); }
+.hero{text-align:center;padding:88px 32px 72px;max-width:780px;margin:0 auto;}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--orange);background:rgba(246,130,31,.1);border:1px solid rgba(246,130,31,.2);padding:5px 14px;border-radius:20px;margin-bottom:28px;}
+.hero h1{font-size:52px;font-weight:700;letter-spacing:-.03em;line-height:1.1;margin-bottom:18px;}
+.hero h1 span{color:var(--orange);}
+.hero p{font-size:18px;color:var(--muted);max-width:560px;margin:0 auto 36px;}
+.hero-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+.btn{padding:12px 26px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:7px;transition:all .15s;}
+.btn-primary{background:var(--orange);color:#fff;}
+.btn-primary:hover{background:#e5740f;}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border);}
+.btn-outline:hover{border-color:var(--muted);}
 
-/* Stats bar */
-.stats { display: flex; justify-content: center; gap: 48px; padding: 32px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.stat { text-align: center; }
-.stat-num { font-size: 28px; font-weight: 700; color: var(--orange); letter-spacing: -.02em; }
-.stat-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+/* Problem section */
+.problem-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px;}
+@media(max-width:640px){.problem-grid{grid-template-columns:1fr;}}
+.problem-card{padding:20px;background:var(--s1);border:1px solid var(--border);border-radius:12px;}
+.problem-card.highlight{border-color:rgba(246,130,31,.4);background:rgba(246,130,31,.04);}
+.problem-card h3{font-size:14px;font-weight:600;margin-bottom:6px;}
+.problem-card p{font-size:13px;color:var(--muted);line-height:1.55;}
+.problem-num{font-size:11px;color:var(--orange);font-weight:600;margin-bottom:6px;}
 
-/* Section */
-.section { max-width: 960px; margin: 0 auto; padding: 64px 32px; }
-.section-tag { font-size: 11px; font-weight: 600; color: var(--orange); letter-spacing: .06em; margin-bottom: 8px; }
-.section h2 { font-size: 30px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 8px; }
-.section-sub { color: var(--muted); font-size: 16px; margin-bottom: 36px; }
+/* Three layers */
+.layer-stack{display:flex;flex-direction:column;gap:8px;margin-bottom:28px;}
+.layer{padding:18px 22px;border-radius:12px;border:1px solid var(--border);background:var(--s1);display:flex;align-items:flex-start;gap:16px;}
+.layer-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;}
+.layer-network .layer-icon{background:rgba(16,185,129,.12);color:var(--green);}
+.layer-device .layer-icon{background:rgba(59,130,246,.12);color:var(--blue);}
+.layer-browser{border-color:var(--orange);background:rgba(246,130,31,.04);}
+.layer-browser .layer-icon{background:rgba(246,130,31,.15);color:var(--orange);}
+.layer-title{font-size:15px;font-weight:600;margin-bottom:3px;}
+.layer-desc{font-size:13px;color:var(--muted);}
+.layer-badge{margin-left:auto;font-size:10px;padding:3px 10px;border-radius:20px;font-weight:500;white-space:nowrap;flex-shrink:0;}
+.badge-shipped{background:rgba(16,185,129,.1);color:var(--green);}
+.badge-gap{background:rgba(246,130,31,.1);color:var(--orange);}
 
-/* How it works */
-.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-@media(max-width:640px){.steps{grid-template-columns:1fr;}}
-.step { padding: 20px; background: var(--s1); border: 1px solid var(--border); border-radius: 12px; }
-.step-num { font-size: 11px; color: var(--orange); font-weight: 600; margin-bottom: 8px; }
-.step h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-.step p { font-size: 13px; color: var(--muted); line-height: 1.5; }
-.step-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
-.tech-tag { font-size: 10px; padding: 2px 8px; background: rgba(246,130,31,.1); color: var(--orange); border-radius: 4px; }
+/* Who benefits */
+.persona-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+@media(max-width:640px){.persona-grid{grid-template-columns:1fr;}}
+.persona{padding:20px;background:var(--s1);border:1px solid var(--border);border-radius:12px;}
+.persona-icon{font-size:24px;margin-bottom:10px;}
+.persona h3{font-size:14px;font-weight:600;margin-bottom:4px;}
+.persona .role{font-size:11px;color:var(--orange);font-weight:500;margin-bottom:8px;}
+.persona p{font-size:13px;color:var(--muted);line-height:1.5;}
+
+/* Features */
+.feature-list{display:flex;flex-direction:column;gap:12px;}
+.feature{display:flex;gap:16px;padding:18px 20px;background:var(--s1);border:1px solid var(--border);border-radius:12px;align-items:flex-start;}
+.feature-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:6px;}
+.feature-body h3{font-size:14px;font-weight:600;margin-bottom:4px;}
+.feature-body p{font-size:13px;color:var(--muted);line-height:1.5;}
+.feature-why{font-size:11px;color:var(--orange);margin-top:5px;font-style:italic;}
+
+/* Voting */
+.voting-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:24px;position:relative;}
+@media(max-width:640px){.voting-flow{grid-template-columns:1fr 1fr;}}
+.vote-step{padding:16px;background:var(--s1);border:1px solid var(--border);border-radius:10px;text-align:center;}
+.vote-step-num{font-size:10px;color:var(--orange);font-weight:600;margin-bottom:6px;}
+.vote-step h4{font-size:13px;font-weight:600;margin-bottom:4px;}
+.vote-step p{font-size:11px;color:var(--muted);}
+.vote-rules{display:flex;flex-direction:column;gap:8px;margin-top:20px;}
+.vote-rule{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--s1);border:1px solid var(--border);border-radius:8px;font-size:13px;}
+.vote-rule-icon{font-size:16px;flex-shrink:0;}
+.vote-rule strong{color:var(--text);}
+.vote-rule span{color:var(--muted);}
+
+/* Next steps */
+.next-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:640px){.next-grid{grid-template-columns:1fr;}}
+.next-card{padding:18px 20px;background:var(--s1);border:1px solid var(--border);border-radius:10px;}
+.next-card h3{font-size:13px;font-weight:600;margin-bottom:4px;}
+.next-card p{font-size:12px;color:var(--muted);line-height:1.5;}
+.next-tag{font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;margin-bottom:8px;display:inline-block;}
+.tag-v3{background:rgba(139,92,246,.12);color:var(--purple);}
+.tag-v4{background:rgba(59,130,246,.12);color:var(--blue);}
 
 /* Demo */
-.demo-wrap { background: var(--s1); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
-.demo-input-row { display: flex; gap: 8px; margin-bottom: 20px; }
-.demo-input { flex: 1; padding: 11px 16px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: 'SF Mono', 'Fira Code', monospace; outline: none; transition: border-color .15s; }
-.demo-input:focus { border-color: var(--orange); }
-.demo-btn { padding: 11px 22px; background: var(--orange); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s; }
-.demo-btn:hover { background: #e5740f; }
-.demo-btn:disabled { background: var(--dim); cursor: not-allowed; }
-.quick-tests { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
-.quick-btn { padding: 5px 12px; background: var(--s2); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--muted); cursor: pointer; font-family: 'SF Mono', monospace; transition: all .15s; }
-.quick-btn:hover { border-color: var(--orange); color: var(--text); }
-.demo-result { display: none; }
-.demo-result.visible { display: block; }
-
-/* Result card */
-.result-card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-.result-header { display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--border); }
-.result-gauge { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
-.result-gauge svg { transform: rotate(-90deg); }
-.gauge-bg { fill: none; stroke: var(--s1); stroke-width: 7; }
-.gauge-fill { fill: none; stroke-width: 7; stroke-linecap: round; stroke-dasharray: 251; stroke-dashoffset: 251; transition: stroke-dashoffset .9s ease, stroke .4s; }
-.gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.gauge-num { font-size: 22px; font-weight: 700; line-height: 1; }
-.gauge-lbl { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-.result-info { flex: 1; }
-.result-domain { font-size: 15px; font-family: 'SF Mono', monospace; color: var(--text); margin-bottom: 4px; word-break: break-all; }
-.result-verdict { font-size: 14px; font-weight: 600; }
-.result-action { display: inline-block; font-size: 11px; padding: 2px 10px; border-radius: 20px; margin-top: 4px; font-weight: 500; }
-.action-allow { background: rgba(16,185,129,.12); color: var(--green); }
-.action-warn { background: rgba(245,158,11,.12); color: var(--amber); }
-.action-block { background: rgba(239,68,68,.12); color: var(--red); }
-
-.result-body { padding: 20px 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.demo-wrap{background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:28px;}
+.demo-input-row{display:flex;gap:8px;margin-bottom:16px;}
+.demo-input{flex:1;padding:11px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:'SF Mono','Fira Code',monospace;outline:none;transition:border-color .15s;}
+.demo-input:focus{border-color:var(--orange);}
+.demo-btn{padding:11px 22px;background:var(--orange);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.demo-btn:hover{background:#e5740f;}
+.demo-btn:disabled{background:var(--dim);cursor:not-allowed;}
+.quick-tests{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;}
+.quick-label{font-size:12px;color:var(--muted);align-self:center;}
+.quick-btn{padding:5px 12px;background:var(--s2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--muted);cursor:pointer;font-family:'SF Mono',monospace;transition:all .15s;}
+.quick-btn:hover{border-color:var(--orange);color:var(--text);}
+.result-card{background:var(--bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:none;}
+.result-card.visible{display:block;}
+.result-header{display:flex;align-items:center;gap:16px;padding:20px 24px;border-bottom:1px solid var(--border);}
+.result-gauge{position:relative;width:80px;height:80px;flex-shrink:0;}
+.result-gauge svg{transform:rotate(-90deg);}
+.gauge-bg{fill:none;stroke:var(--s1);stroke-width:7;}
+.gauge-fill{fill:none;stroke-width:7;stroke-linecap:round;stroke-dasharray:251;stroke-dashoffset:251;transition:all .9s ease;}
+.gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.gauge-num{font-size:22px;font-weight:700;line-height:1;}
+.gauge-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+.result-info .domain{font-size:15px;font-family:'SF Mono',monospace;margin-bottom:4px;word-break:break-all;}
+.result-verdict{font-size:14px;font-weight:600;}
+.result-action{display:inline-block;font-size:11px;padding:2px 10px;border-radius:20px;margin-top:4px;font-weight:500;}
+.action-allow{background:rgba(16,185,129,.12);color:var(--green);}
+.action-warn{background:rgba(245,158,11,.12);color:var(--amber);}
+.action-block{background:rgba(239,68,68,.12);color:var(--red);}
+.result-body{padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
 @media(max-width:600px){.result-body{grid-template-columns:1fr;}}
+.result-section h4{font-size:11px;font-weight:600;color:var(--orange);margin-bottom:8px;}
+.ai-text{font-size:13px;color:var(--text);line-height:1.5;margin-bottom:5px;}
+.ai-detail{font-size:12px;color:var(--muted);line-height:1.45;}
+.flags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+.flag{font-size:10px;padding:2px 8px;background:rgba(239,68,68,.1);color:var(--red);border-radius:4px;}
+.safe-tag{font-size:10px;padding:2px 8px;background:rgba(16,185,129,.1);color:var(--green);border-radius:4px;}
+.signal{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--s2);font-size:11px;}
+.signal:last-child{border-bottom:none;}
+.sig-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.sig-name{color:var(--muted);min-width:72px;}
+.sig-detail{color:var(--text);flex:1;}
+.sig-score{color:var(--dim);min-width:20px;text-align:right;}
+.loading-state{display:flex;align-items:center;gap:12px;padding:28px;color:var(--muted);font-size:14px;}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
-.result-section h4 { font-size: 11px; font-weight: 600; color: var(--orange); margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
-.ai-text { font-size: 13px; color: var(--text); line-height: 1.5; margin-bottom: 6px; }
-.ai-detail { font-size: 12px; color: var(--muted); line-height: 1.45; }
-.flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-.flag { font-size: 10px; padding: 2px 8px; background: rgba(239,68,68,.1); color: var(--red); border-radius: 4px; }
-.safe-tag { font-size: 10px; padding: 2px 8px; background: rgba(16,185,129,.1); color: var(--green); border-radius: 4px; }
-
-.signal { display: flex; align-items: center; gap: 7px; padding: 5px 0; border-bottom: 1px solid var(--s2); font-size: 11px; }
-.signal:last-child { border-bottom: none; }
-.sig-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.sig-name { color: var(--muted); min-width: 72px; }
-.sig-detail { color: var(--text); flex: 1; }
-.sig-score { color: var(--dim); min-width: 20px; text-align: right; }
-
-.loading-state { display: flex; align-items: center; gap: 12px; padding: 32px; color: var(--muted); font-size: 14px; }
-.spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--orange); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* Install steps */
-.install-steps { display: flex; flex-direction: column; gap: 12px; }
-.install-step { display: flex; gap: 16px; padding: 16px 20px; background: var(--s1); border: 1px solid var(--border); border-radius: 10px; align-items: flex-start; }
-.install-step-num { width: 28px; height: 28px; border-radius: 50%; background: rgba(246,130,31,.15); color: var(--orange); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.install-step h3 { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
-.install-step p { font-size: 13px; color: var(--muted); }
-.install-step code { font-family: 'SF Mono', monospace; background: var(--s2); padding: 1px 6px; border-radius: 4px; font-size: 12px; color: var(--orange); }
+/* Install */
+.install-steps{display:flex;flex-direction:column;gap:10px;}
+.install-step{display:flex;gap:14px;padding:16px 18px;background:var(--s1);border:1px solid var(--border);border-radius:10px;align-items:flex-start;}
+.install-num{width:26px;height:26px;border-radius:50%;background:rgba(246,130,31,.15);color:var(--orange);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.install-step h3{font-size:13px;font-weight:600;margin-bottom:3px;}
+.install-step p{font-size:13px;color:var(--muted);}
+.install-step code{font-family:'SF Mono',monospace;background:var(--s2);padding:1px 6px;border-radius:4px;font-size:12px;color:var(--orange);}
 
 /* Footer */
-footer { border-top: 1px solid var(--border); padding: 32px; text-align: center; color: var(--dim); font-size: 13px; }
-footer a { color: var(--orange); text-decoration: none; }
+footer{border-top:1px solid var(--border);padding:32px;text-align:center;color:var(--dim);font-size:13px;}
+footer a{color:var(--orange);text-decoration:none;}
 </style>
 </head>
 <body>
 
 <nav>
   <div class="nav-logo">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
     Domain Authenticator
   </div>
   <div class="nav-links">
-    <a href="#demo">Live demo</a>
-    <a href="#how">How it works</a>
+    <a href="#problem">Why</a>
+    <a href="#features">Features</a>
+    <a href="#voting">Voting</a>
+    <a href="#demo">Demo</a>
     <a href="#install">Install</a>
   </div>
   <a href="https://github.com/keertipc7/domain-authenticator" class="nav-cta">GitHub</a>
 </nav>
 
+<!-- Hero -->
 <div class="hero">
   <div class="hero-badge">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    Powered by Cloudflare Workers AI
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    AI-powered · Edge-native · Community-verified
   </div>
-  <h1>Domain trust scoring<br>at the <span>edge</span></h1>
-  <p>A Chrome extension that analyzes every domain you visit in real time — blocking dangerous sites before you interact with them, powered by AI running on Cloudflare's global network.</p>
+  <h1>Know if a site is safe<br>before you <span>interact</span></h1>
+  <p>A Chrome extension that silently analyzes every domain you visit — blocking phishing sites, typosquats, and impersonation attacks in real time.</p>
   <div class="hero-btns">
     <a href="#install" class="btn btn-primary">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Install extension
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Add to Chrome
     </a>
-    <a href="#demo" class="btn btn-outline">Try the live demo</a>
+    <a href="#demo" class="btn btn-outline">Try the demo</a>
   </div>
 </div>
 
-<div class="stats">
-  <div class="stat"><div class="stat-num">300+</div><div class="stat-label">Edge locations</div></div>
-  <div class="stat"><div class="stat-num">&lt;100ms</div><div class="stat-label">Analysis latency</div></div>
-  <div class="stat"><div class="stat-num">6h</div><div class="stat-label">Edge cache TTL</div></div>
-  <div class="stat"><div class="stat-num">Free</div><div class="stat-label">Cloudflare tier</div></div>
+<hr class="divider">
+
+<!-- WHY -->
+<div class="section" id="problem">
+  <div class="section-tag">The problem</div>
+  <h2>Phishing works because defenses are too slow</h2>
+  <p class="section-sub">The average phishing site is live for 21 hours before any blocklist catches it. During that window, users have no protection.</p>
+
+  <div class="problem-grid">
+    <div class="problem-card">
+      <div class="problem-num">01</div>
+      <h3>Blocklists lag behind attackers</h3>
+      <p>Google Safe Browsing and similar tools rely on reported domains. A brand-new phishing site passes every check until someone reports it — which takes hours.</p>
+    </div>
+    <div class="problem-card">
+      <div class="problem-num">02</div>
+      <h3>Typosquatting is trivially easy</h3>
+      <p>Registering <code style="font-size:12px;background:var(--s2);padding:1px 5px;border-radius:3px;color:var(--orange)">g00gle.xyz</code> costs $1. Most users won't notice the difference until they've already entered their password.</p>
+    </div>
+    <div class="problem-card">
+      <div class="problem-num">03</div>
+      <h3>Network-level tools can't see inside the browser</h3>
+      <p>Firewalls and proxies inspect HTTP traffic. But a page that loads clean HTML and renders a phishing form via JavaScript is completely invisible to them.</p>
+    </div>
+    <div class="problem-card highlight">
+      <div class="problem-num">04 — The white space</div>
+      <h3>Nobody is analyzing domains at the moment of navigation</h3>
+      <p>There is no tool that scores a domain's trustworthiness in real time, at the browser layer, using both AI and community signals — and acts on it automatically.</p>
+    </div>
+  </div>
+
+  <div class="section-tag" style="margin-top:40px">Where this fits</div>
+  <p style="font-size:14px;color:var(--muted);margin-bottom:20px">Modern security stacks protect the network and device layers. The browser — where actual work happens — has been the missing piece.</p>
+  <div class="layer-stack">
+    <div class="layer layer-network">
+      <div class="layer-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+      </div>
+      <div><div class="layer-title">Network layer — firewalls, DNS filters, proxies</div><div class="layer-desc">Sees URLs and HTTP payloads. Can't see what JavaScript renders after page load.</div></div>
+      <span class="layer-badge badge-shipped">Existing tools</span>
+    </div>
+    <div class="layer layer-device">
+      <div class="layer-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div><div class="layer-title">Device layer — endpoint agents, OS telemetry</div><div class="layer-desc">Sees running processes and OS state. Can't see what's happening inside the browser tab.</div></div>
+      <span class="layer-badge badge-shipped">Existing tools</span>
+    </div>
+    <div class="layer layer-browser">
+      <div class="layer-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div><div class="layer-title">Browser layer — Domain Authenticator</div><div class="layer-desc">Analyzes domains at the moment of navigation. Sees what the network can't — and acts before you interact.</div></div>
+      <span class="layer-badge badge-gap">This tool</span>
+    </div>
+  </div>
 </div>
 
-<!-- How it works -->
+<hr class="divider">
+
+<!-- WHO BENEFITS -->
+<div class="section" id="who">
+  <div class="section-tag">Who this is for</div>
+  <h2>Built for anyone who clicks links</h2>
+  <p class="section-sub">But especially useful for people who are high-value targets — or who manage security for others.</p>
+  <div class="persona-grid">
+    <div class="persona">
+      <div class="persona-icon">👩‍💼</div>
+      <div class="role">Enterprise employee</div>
+      <h3>Works with sensitive data daily</h3>
+      <p>Gets phishing emails that look exactly like internal tools. Needs protection that works without changing their habits.</p>
+    </div>
+    <div class="persona">
+      <div class="persona-icon">🔐</div>
+      <div class="role">IT / Security admin</div>
+      <h3>Responsible for their organisation's safety</h3>
+      <p>Wants a browser-layer signal they can act on — block, warn, or isolate — as part of their existing policy engine.</p>
+    </div>
+    <div class="persona">
+      <div class="persona-icon">🧑‍💻</div>
+      <div class="role">Developer / power user</div>
+      <h3>Clicks dozens of unfamiliar links a day</h3>
+      <p>Wants to know before clicking whether a link from a Slack message or a GitHub issue is going somewhere legitimate.</p>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- FEATURES -->
+<div class="section" id="features">
+  <div class="section-tag">Features</div>
+  <h2>What it does and why each feature was chosen</h2>
+  <p class="section-sub">Every feature exists to close a specific gap. Nothing is decorative.</p>
+  <div class="feature-list">
+    <div class="feature">
+      <div class="feature-dot" style="background:var(--red)"></div>
+      <div class="feature-body">
+        <h3>Auto-blocks dangerous domains</h3>
+        <p>When you navigate to a domain that scores below the danger threshold, a full-screen overlay stops you before the page loads. It shows you the trust score, the AI's reasoning, and a list of specific risk signals. You can still proceed — but you do so knowingly.</p>
+        <div class="feature-why">Why: most phishing victims don't know they're on a fake site until after they've typed their password. Stopping navigation before interaction changes the outcome.</div>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-dot" style="background:var(--amber)"></div>
+      <div class="feature-body">
+        <h3>Warning banners for borderline sites</h3>
+        <p>Sites that score in the caution range get an amber banner at the top of the page — non-intrusive, dismissible, but clearly visible. It auto-disappears after 10 seconds if you ignore it.</p>
+        <div class="feature-why">Why: not every suspicious domain should be blocked. A warning respects user autonomy while still surfacing the risk.</div>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-dot" style="background:var(--blue)"></div>
+      <div class="feature-body">
+        <h3>Detailed trust analysis in the popup</h3>
+        <p>Click the shield icon on any tab to see the full breakdown: a trust score gauge, signal-by-signal scoring (brand similarity, TLD risk, entropy, subdomain abuse), and a plain-English AI explanation of why the domain was rated the way it was.</p>
+        <div class="feature-why">Why: a score without an explanation trains users to ignore it. Seeing "1 character away from paypal.com — likely typosquatting" builds intuition.</div>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-dot" style="background:var(--orange)"></div>
+      <div class="feature-body">
+        <h3>Right-click to analyze any link before clicking</h3>
+        <p>Right-click any hyperlink → "Analyze link safety" — a toast appears with the domain's trust score and AI summary without navigating to the page.</p>
+        <div class="feature-why">Why: the riskiest moment is before the click, not after. This is proactive protection — the only feature that prevents the navigation entirely.</div>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-dot" style="background:var(--purple)"></div>
+      <div class="feature-body">
+        <h3>Community voting — Safe / Suspicious / Unsafe</h3>
+        <p>Every user can vote on any domain. Votes are weighted by reviewer activity (more reviews = more weight, capped at 2×). Community consensus can escalate or de-escalate the AI's verdict — but only with a clear majority and minimum vote threshold.</p>
+        <div class="feature-why">Why: AI makes mistakes. A domain that launched yesterday may have no threat-feed history but be clearly phishing to anyone who looks at it. Human judgment fills that gap.</div>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-dot" style="background:var(--green)"></div>
+      <div class="feature-body">
+        <h3>Report AI mistakes</h3>
+        <p>If the AI gets a verdict wrong — flagging a legitimate site or missing a phishing one — you can report it directly from the popup with what the verdict should have been and why.</p>
+        <div class="feature-why">Why: no model is perfect at launch. Structured error reporting creates a feedback loop that makes the system more accurate over time.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- HOW IT WORKS -->
 <div class="section" id="how">
-  <div class="section-tag">ARCHITECTURE</div>
-  <h2>How it works</h2>
-  <p class="section-sub">Three components, all running on Cloudflare's free tier.</p>
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">01</div>
-      <h3>Chrome extension</h3>
-      <p>Hooks into every navigation via the webNavigation API. Injects block overlays for dangerous sites and warning banners for suspicious ones. No user action needed.</p>
-      <div class="step-tags"><span class="tech-tag">Manifest V3</span><span class="tech-tag">Service worker</span><span class="tech-tag">Content scripts</span></div>
+  <div class="section-tag">How it works</div>
+  <h2>Three signals, one score</h2>
+  <p class="section-sub">Every domain gets scored on a 0–100 trust scale the moment you navigate to it. Three systems contribute to that score.</p>
+
+  <div class="problem-grid" style="margin-bottom:24px">
+    <div class="problem-card">
+      <div class="problem-num">Heuristic engine</div>
+      <h3>Fast, deterministic, explainable</h3>
+      <p>Six signals scored and weighted: brand similarity (catches <em>paypa1.com</em>), digit substitution (catches <em>g00gle</em>), TLD risk (.xyz, .top, .buzz), Shannon entropy (catches randomly generated domains), subdomain abuse, and character patterns. Results in milliseconds, no AI needed.</p>
     </div>
-    <div class="step">
-      <div class="step-num">02</div>
-      <h3>Edge analysis</h3>
-      <p>A Cloudflare Worker runs a 6-signal heuristic engine plus Workers AI (Llama 3.1 8B) for semantic analysis. Combo overrides catch digit substitution attacks like g00gle.xyz instantly.</p>
-      <div class="step-tags"><span class="tech-tag">Workers</span><span class="tech-tag">Workers AI</span><span class="tech-tag">Llama 3.1 8B</span></div>
+    <div class="problem-card">
+      <div class="problem-num">AI — Llama 3.1 8B</div>
+      <h3>Catches what rules miss</h3>
+      <p>An LLM analyzes the domain name in context — understanding semantic tricks, unusual naming patterns, and combinations of signals that don't hit any single heuristic threshold. Returns a risk level, confidence score, and a plain-English explanation.</p>
     </div>
-    <div class="step">
-      <div class="step-num">03</div>
-      <h3>Community + cache</h3>
-      <p>Verdicts are cached globally via Workers KV. Community votes (Safe / Suspicious / Unsafe) feed back into scoring — one user's detection protects all users worldwide.</p>
-      <div class="step-tags"><span class="tech-tag">Workers KV</span><span class="tech-tag">Global cache</span><span class="tech-tag">Community signals</span></div>
+    <div class="problem-card">
+      <div class="problem-num">Community votes</div>
+      <h3>Human judgment at scale</h3>
+      <p>Weighted votes from real users. A clear majority (60%+) can escalate or de-escalate the AI's verdict. Active reviewers carry more weight. The system requires minimum 2 votes before community signal activates — preventing single-vote manipulation.</p>
+    </div>
+    <div class="problem-card highlight">
+      <div class="problem-num">Combo overrides</div>
+      <h3>Certain patterns always block</h3>
+      <p>Digit substitution of a known brand (<em>g00gle</em>) combined with a high-risk TLD (<em>.xyz</em>) bypasses the weighted scoring entirely and forces a block — because no legitimate site uses that combination.</p>
+    </div>
+  </div>
+
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:20px 24px;">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;font-weight:500;">VERDICT THRESHOLDS</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;align-items:center;gap:12px;font-size:13px;"><div style="width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0"></div><span style="min-width:80px;color:var(--green);font-weight:500">75–100</span><span style="color:var(--muted)">Trusted — allowed through</span></div>
+      <div style="display:flex;align-items:center;gap:12px;font-size:13px;"><div style="width:10px;height:10px;border-radius:50%;background:var(--blue);flex-shrink:0"></div><span style="min-width:80px;color:var(--blue);font-weight:500">58–74</span><span style="color:var(--muted)">Likely safe — allowed through</span></div>
+      <div style="display:flex;align-items:center;gap:12px;font-size:13px;"><div style="width:10px;height:10px;border-radius:50%;background:var(--amber);flex-shrink:0"></div><span style="min-width:80px;color:var(--amber);font-weight:500">42–57</span><span style="color:var(--muted)">Caution — warning banner shown</span></div>
+      <div style="display:flex;align-items:center;gap:12px;font-size:13px;"><div style="width:10px;height:10px;border-radius:50%;background:var(--orange);flex-shrink:0"></div><span style="min-width:80px;color:var(--orange);font-weight:500">22–41</span><span style="color:var(--muted)">Suspicious — blocked</span></div>
+      <div style="display:flex;align-items:center;gap:12px;font-size:13px;"><div style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0"></div><span style="min-width:80px;color:var(--red);font-weight:500">0–21</span><span style="color:var(--muted)">Dangerous — blocked</span></div>
     </div>
   </div>
 </div>
 
-<!-- Live demo -->
+<hr class="divider">
+
+<!-- VOTING -->
+<div class="section" id="voting">
+  <div class="section-tag">Community voting</div>
+  <h2>AI is the starting point. Humans refine it.</h2>
+  <p class="section-sub">The voting system exists because AI models make mistakes — especially on brand-new domains with no history. Community votes provide a correction layer.</p>
+
+  <div class="voting-flow">
+    <div class="vote-step">
+      <div class="vote-step-num">STEP 1</div>
+      <h4>You visit a domain</h4>
+      <p>AI and heuristics produce an initial verdict</p>
+    </div>
+    <div class="vote-step">
+      <div class="vote-step-num">STEP 2</div>
+      <h4>You cast a vote</h4>
+      <p>Safe, Suspicious, or Unsafe from the popup</p>
+    </div>
+    <div class="vote-step">
+      <div class="vote-step-num">STEP 3</div>
+      <h4>Vote is weighted</h4>
+      <p>Active reviewers carry up to 2× weight</p>
+    </div>
+    <div class="vote-step">
+      <div class="vote-step-num">STEP 4</div>
+      <h4>Consensus shifts the verdict</h4>
+      <p>60%+ majority can escalate or de-escalate</p>
+    </div>
+  </div>
+
+  <div class="vote-rules">
+    <div class="vote-rule">
+      <div class="vote-rule-icon">⚖️</div>
+      <div><strong>Weighted votes</strong> <span>— New users start at 1× weight. Review 10+ domains: 1.5×. Review 50+: 2× (capped). Casual opinions carry less weight than engaged reviewers.</span></div>
+    </div>
+    <div class="vote-rule">
+      <div class="vote-rule-icon">🔢</div>
+      <div><strong>Minimum threshold</strong> <span>— One vote does nothing. You need at least 2 votes before the community signal activates. This prevents single-user manipulation.</span></div>
+    </div>
+    <div class="vote-rule">
+      <div class="vote-rule-icon">🔼</div>
+      <div><strong>Unsafe majority escalates</strong> <span>— 60%+ unsafe votes upgrades allow → warn, and warn → block. Community can push a site into a block even if AI missed it.</span></div>
+    </div>
+    <div class="vote-rule">
+      <div class="vote-rule-icon">🔽</div>
+      <div><strong>Safe majority de-escalates</strong> <span>— 60%+ safe votes with 50%+ confidence downgrades block → warn. Community cannot fully clear a site — warn is the minimum floor.</span></div>
+    </div>
+    <div class="vote-rule">
+      <div class="vote-rule-icon">🔄</div>
+      <div><strong>Cache busts on every vote</strong> <span>— Voting immediately invalidates the cached verdict. The next user to visit that domain gets a fresh analysis that reflects the new community data.</span></div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- DEMO -->
 <div class="section" id="demo">
-  <div class="section-tag">LIVE DEMO</div>
-  <h2>Try it — real AI analysis</h2>
-  <p class="section-sub">These results come from the live Cloudflare Worker. Not simulated.</p>
+  <div class="section-tag">Live demo</div>
+  <h2>Try it — real AI, real results</h2>
+  <p class="section-sub">These scores come from the live edge API. Not simulated.</p>
   <div class="demo-wrap">
     <div class="demo-input-row">
-      <input class="demo-input" id="domain-input" placeholder="Enter any domain — e.g. g00gle.xyz" />
+      <input class="demo-input" id="domain-input" placeholder="Type any domain — e.g. g00gle.xyz" />
       <button class="demo-btn" id="analyze-btn" onclick="analyze()">Analyze</button>
     </div>
     <div class="quick-tests">
-      <span style="font-size:12px;color:var(--muted);align-self:center">Quick test:</span>
+      <span class="quick-label">Quick test:</span>
       <button class="quick-btn" onclick="quickTest('github.com')">github.com</button>
       <button class="quick-btn" onclick="quickTest('g00gle.xyz')">g00gle.xyz</button>
       <button class="quick-btn" onclick="quickTest('paypal-secure.top')">paypal-secure.top</button>
       <button class="quick-btn" onclick="quickTest('micr0soft-login.buzz')">micr0soft-login.buzz</button>
       <button class="quick-btn" onclick="quickTest('bbc.com')">bbc.com</button>
     </div>
-    <div class="demo-result" id="demo-result"></div>
+    <div class="result-card" id="result-card">
+      <div class="loading-state" id="loading-state">
+        <div class="spinner"></div>Running AI analysis at the edge…
+      </div>
+      <div id="result-content" style="display:none">
+        <div class="result-header">
+          <div class="result-gauge">
+            <svg viewBox="0 0 100 100" width="80" height="80">
+              <circle cx="50" cy="50" r="40" class="gauge-bg"/>
+              <circle cx="50" cy="50" r="40" class="gauge-fill" id="gauge-fill"/>
+            </svg>
+            <div class="gauge-center">
+              <span class="gauge-num" id="gauge-num">—</span>
+              <span class="gauge-lbl">trust</span>
+            </div>
+          </div>
+          <div class="result-info">
+            <div class="domain" id="result-domain"></div>
+            <div class="result-verdict" id="result-verdict"></div>
+            <span class="result-action" id="result-action"></span>
+          </div>
+        </div>
+        <div class="result-body">
+          <div class="result-section">
+            <h4>AI analysis</h4>
+            <p class="ai-text" id="ai-summary"></p>
+            <p class="ai-detail" id="ai-detail"></p>
+            <div class="flags" id="ai-flags"></div>
+          </div>
+          <div class="result-section">
+            <h4>Signal breakdown</h4>
+            <div id="signals"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Install -->
+<hr class="divider">
+
+<!-- INSTALL -->
 <div class="section" id="install">
-  <div class="section-tag">INSTALL</div>
-  <h2>Add to Chrome in 3 steps</h2>
-  <p class="section-sub">The Worker is already deployed — you just need the extension.</p>
+  <div class="section-tag">Install</div>
+  <h2>Add to Chrome in 4 steps</h2>
+  <p class="section-sub">The backend is already live. You only need the extension.</p>
   <div class="install-steps">
     <div class="install-step">
-      <div class="install-step-num">1</div>
+      <div class="install-num">1</div>
       <div>
-        <h3>Download the extension</h3>
-        <p>Clone or download the repo from <a href="https://github.com/keertipc7/domain-authenticator" style="color:var(--orange)">GitHub</a> and navigate to the <code>extension/</code> folder.</p>
+        <h3>Clone the repo</h3>
+        <p><code>git clone https://github.com/keertipc7/domain-authenticator.git</code></p>
       </div>
     </div>
     <div class="install-step">
-      <div class="install-step-num">2</div>
+      <div class="install-num">2</div>
       <div>
-        <h3>Load in Chrome</h3>
-        <p>Open <code>chrome://extensions</code> → enable <strong>Developer mode</strong> → click <strong>Load unpacked</strong> → select the <code>extension/</code> folder.</p>
+        <h3>Open Chrome extensions</h3>
+        <p>Go to <code>chrome://extensions</code> in your browser.</p>
       </div>
     </div>
     <div class="install-step">
-      <div class="install-step-num">3</div>
+      <div class="install-num">3</div>
       <div>
-        <h3>Browse normally</h3>
-        <p>The shield icon appears in your toolbar. Navigate to any site — dangerous domains are blocked automatically, suspicious ones get a warning banner. Click the icon for the full analysis.</p>
+        <h3>Enable Developer mode</h3>
+        <p>Toggle <strong>Developer mode</strong> on — top right corner of the extensions page.</p>
       </div>
+    </div>
+    <div class="install-step">
+      <div class="install-num">4</div>
+      <div>
+        <h3>Load the extension</h3>
+        <p>Click <strong>Load unpacked</strong> → select the <code>extension/</code> folder. The shield icon appears in your toolbar immediately.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- NEXT STEPS -->
+<div class="section" id="next">
+  <div class="section-tag">What's next</div>
+  <h2>The roadmap</h2>
+  <p class="section-sub">Features planned for future versions.</p>
+  <div class="next-grid">
+    <div class="next-card">
+      <span class="next-tag tag-v3">Next</span>
+      <h3>Human verification for voting</h3>
+      <p>CAPTCHA or proof-of-work before a vote counts — prevents automated vote stuffing and makes community signals more trustworthy.</p>
+    </div>
+    <div class="next-card">
+      <span class="next-tag tag-v3">Next</span>
+      <h3>Auto-stop access on dangerous sites</h3>
+      <p>Block form submissions and disable input fields on sites that score below threshold — not just warn, but actively prevent credential entry.</p>
+    </div>
+    <div class="next-card">
+      <span class="next-tag tag-v3">Next</span>
+      <h3>Domain age signal</h3>
+      <p>Newly registered domains (under 30 days) are the strongest phishing indicator. Integrating WHOIS data would add a high-confidence signal the heuristics currently miss.</p>
+    </div>
+    <div class="next-card">
+      <span class="next-tag tag-v4">Future</span>
+      <h3>DOM-level credential form detection</h3>
+      <p>Scan the rendered page — after JavaScript runs — for login forms on untrusted domains. Catches phishing pages that load clean HTML and render malicious content client-side.</p>
+    </div>
+    <div class="next-card">
+      <span class="next-tag tag-v4">Future</span>
+      <h3>Policy engine integration</h3>
+      <p>Expose the trust score as a policy signal — so enterprise admins can write rules like "if trust score &lt; 40, isolate in remote browser" without any new infrastructure.</p>
+    </div>
+    <div class="next-card">
+      <span class="next-tag tag-v4">Future</span>
+      <h3>Voter reputation system</h3>
+      <p>Track voting accuracy over time — users who consistently vote in line with eventual AI consensus get higher weights. Users who vote against consensus lose weight.</p>
     </div>
   </div>
 </div>
 
 <footer>
-  <p>Built on Cloudflare Workers, Workers AI, and Workers KV — free tier only.</p>
-  <p style="margin-top:6px"><a href="https://github.com/keertipc7/domain-authenticator">GitHub</a> · <a href="https://dash.cloudflare.com">Cloudflare Dashboard</a></p>
+  <p>Domain Authenticator · <a href="https://github.com/keertipc7/domain-authenticator">GitHub</a></p>
 </footer>
 
 <script>
 const WORKER_URL = 'https://domain-authenticator.keertipc7.workers.dev';
+const VC={trusted:'#10b981',likely_safe:'#3b82f6',caution:'#f59e0b',suspicious:'#f97316',dangerous:'#ef4444'};
+const VL={trusted:'Trusted',likely_safe:'Likely safe',caution:'Use caution',suspicious:'Suspicious',dangerous:'Dangerous'};
+const AL={allow:'Allowed',warn:'Warning shown',block:'Blocked'};
+const SL={brandSimilarity:'Brand',entropy:'Randomness',tld:'TLD risk',length:'Length',subdomain:'Subdomains',specialChars:'Characters'};
+function dc(s){return s>=70?'#ef4444':s>=40?'#f59e0b':s>=15?'#3b82f6':'#10b981';}
 
-const VC = { trusted:'#10b981', likely_safe:'#3b82f6', caution:'#f59e0b', suspicious:'#f97316', dangerous:'#ef4444' };
-const VL = { trusted:'Trusted', likely_safe:'Likely safe', caution:'Use caution', suspicious:'Suspicious', dangerous:'Dangerous' };
-const AL = { allow:'Allowed', warn:'Warning shown', block:'Blocked' };
-const SL = { brandSimilarity:'Brand', entropy:'Randomness', tld:'TLD risk', length:'Length', subdomain:'Subdomains', specialChars:'Characters' };
+function quickTest(d){document.getElementById('domain-input').value=d;analyze();}
 
-function dotColor(s) { return s>=70?'#ef4444':s>=40?'#f59e0b':s>=15?'#3b82f6':'#10b981'; }
+async function analyze(){
+  const input=document.getElementById('domain-input');
+  const btn=document.getElementById('analyze-btn');
+  const card=document.getElementById('result-card');
+  const loading=document.getElementById('loading-state');
+  const content=document.getElementById('result-content');
+  const raw=input.value.trim().toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0];
+  if(!raw)return;
 
-function quickTest(domain) {
-  document.getElementById('domain-input').value = domain;
-  analyze();
-}
+  btn.disabled=true;btn.textContent='Analyzing…';
+  card.className='result-card visible';
+  loading.style.display='flex';content.style.display='none';
 
-async function analyze() {
-  const input = document.getElementById('domain-input');
-  const btn = document.getElementById('analyze-btn');
-  const resultEl = document.getElementById('demo-result');
-  const domain = input.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
-  if (!domain) return;
-
-  btn.disabled = true;
-  btn.textContent = 'Analyzing…';
-  resultEl.className = 'demo-result visible';
-  resultEl.innerHTML = '<div class="loading-state"><div class="spinner"></div>Running AI analysis at the edge…</div>';
-
-  try {
-    const resp = await fetch(`${WORKER_URL}/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ domain }),
-    });
-    const data = await resp.json();
-    renderResult(resultEl, data);
-  } catch (e) {
-    resultEl.innerHTML = `<div class="loading-state" style="color:var(--red)">Could not reach the Worker API. Make sure WORKER_URL is set correctly in index.html.</div>`;
+  try{
+    const resp=await fetch(`${WORKER_URL}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:raw})});
+    const data=await resp.json();
+    renderResult(data);
+  }catch(e){
+    loading.innerHTML=`<span style="color:var(--red)">Could not reach the API — check that WORKER_URL is set correctly.</span>`;
   }
-
-  btn.disabled = false;
-  btn.textContent = 'Analyze';
+  btn.disabled=false;btn.textContent='Analyze';
 }
 
-function renderResult(el, data) {
-  const circ = 2 * Math.PI * 40;
-  const offset = circ - (data.trustScore / 100) * circ;
-  const vc = VC[data.verdict] || '#6b7280';
+function renderResult(data){
+  const loading=document.getElementById('loading-state');
+  const content=document.getElementById('result-content');
+  loading.style.display='none';content.style.display='block';
 
-  let signals = '';
-  if (data.signals && !data.allowlisted) {
-    for (const [k, s] of Object.entries(data.signals)) {
-      signals += `<div class="signal">
-        <span class="sig-dot" style="background:${dotColor(s.score)}"></span>
-        <span class="sig-name">${SL[k]||k}</span>
-        <span class="sig-detail">${s.detail}</span>
-        <span class="sig-score">${s.score}</span>
-      </div>`;
+  const circ=2*Math.PI*40;
+  const offset=circ-(data.trustScore/100)*circ;
+  const vc=VC[data.verdict]||'#6b7280';
+  const gf=document.getElementById('gauge-fill');
+  gf.style.stroke=vc;gf.style.strokeDasharray=circ;gf.style.strokeDashoffset=offset;
+
+  document.getElementById('gauge-num').textContent=data.trustScore;
+  document.getElementById('gauge-num').style.color=vc;
+  document.getElementById('result-domain').textContent=data.domain+(data.cached?' (cached)':'');
+  const vd=document.getElementById('result-verdict');
+  vd.textContent=VL[data.verdict]||data.verdict;vd.style.color=vc;
+  const ra=document.getElementById('result-action');
+  ra.textContent=AL[data.action]||data.action;ra.className='result-action action-'+(data.action||'allow');
+
+  document.getElementById('ai-summary').textContent=data.ai?.summary||'Analysis completed.';
+  document.getElementById('ai-detail').textContent=data.ai?.technical_detail||'';
+  const flags=document.getElementById('ai-flags');flags.innerHTML='';
+  (data.ai?.flags||[]).forEach(f=>{const s=document.createElement('span');s.className='flag';s.textContent=f;flags.appendChild(s);});
+  (data.ai?.safe_reasons||[]).forEach(r=>{const s=document.createElement('span');s.className='safe-tag';s.textContent=r;flags.appendChild(s);});
+
+  const sigs=document.getElementById('signals');sigs.innerHTML='';
+  if(data.signals&&!data.allowlisted){
+    for(const[k,s]of Object.entries(data.signals)){
+      if(k==='note')continue;
+      sigs.innerHTML+=`<div class="signal"><span class="sig-dot" style="background:${dc(s.score)}"></span><span class="sig-name">${SL[k]||k}</span><span class="sig-detail">${s.detail}</span><span class="sig-score">${s.score}</span></div>`;
     }
+  } else if(data.allowlisted){
+    sigs.innerHTML='<div style="font-size:12px;color:var(--muted)">Recognised trusted domain — no analysis needed.</div>';
   }
-
-  const flags = (data.ai?.flags||[]).map(f=>`<span class="flag">${f}</span>`).join('');
-  const safe = (data.ai?.safe_reasons||[]).map(r=>`<span class="safe-tag">${r}</span>`).join('');
-  const cached = data.cached ? '<span style="font-size:10px;color:var(--dim);margin-left:8px">cached</span>' : '';
-  const aiPowered = data.ai?.ai_powered !== false
-    ? '<span style="font-size:10px;color:var(--orange)">Workers AI</span>'
-    : '<span style="font-size:10px;color:var(--dim)">heuristic fallback</span>';
-
-  el.innerHTML = `<div class="result-card">
-    <div class="result-header">
-      <div class="result-gauge">
-        <svg viewBox="0 0 100 100" width="80" height="80">
-          <circle cx="50" cy="50" r="40" class="gauge-bg"/>
-          <circle cx="50" cy="50" r="40" class="gauge-fill" style="stroke:${vc};stroke-dasharray:${circ};stroke-dashoffset:${offset}"/>
-        </svg>
-        <div class="gauge-center">
-          <span class="gauge-num" style="color:${vc}">${data.trustScore}</span>
-          <span class="gauge-lbl">trust</span>
-        </div>
-      </div>
-      <div class="result-info">
-        <div class="result-domain">${data.domain}${cached}</div>
-        <div class="result-verdict" style="color:${vc}">${VL[data.verdict]||data.verdict}</div>
-        <span class="result-action action-${data.action}">${AL[data.action]||data.action}</span>
-        <div style="margin-top:6px">${aiPowered}</div>
-      </div>
-    </div>
-    <div class="result-body">
-      <div class="result-section">
-        <h4>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg>
-          AI analysis
-        </h4>
-        <p class="ai-text">${data.ai?.summary||'Analysis completed.'}</p>
-        <p class="ai-detail">${data.ai?.technical_detail||''}</p>
-        <div class="flags">${flags}${safe}</div>
-      </div>
-      <div class="result-section">
-        <h4>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          Signal breakdown
-        </h4>
-        ${signals || '<p style="font-size:12px;color:var(--muted)">Allowlisted domain — no analysis needed.</p>'}
-      </div>
-    </div>
-  </div>`;
 }
 
-document.getElementById('domain-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') analyze();
-});
+document.getElementById('domain-input').addEventListener('keydown',e=>{if(e.key==='Enter')analyze();});
 </script>
 </body>
 </html>
