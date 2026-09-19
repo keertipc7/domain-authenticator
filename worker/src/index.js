@@ -38,10 +38,14 @@ const SAFE_DOMAINS = new Set([
   'github.com','stackoverflow.com','apple.com','microsoft.com','netflix.com',
   'cloudflare.com','dash.cloudflare.com','developers.cloudflare.com','blog.cloudflare.com',
   'workers.cloudflare.com','discord.com','whatsapp.com','zoom.us','spotify.com',
-  'paypal.com','stripe.com','slack.com','notion.so','figma.com',
+  'paypal.com','stripe.com','slack.com','app.slack.com','files.slack.com',
+  'hooks.slack.com','api.slack.com','notion.so','figma.com',
   'vercel.com','netlify.com','medium.com','openai.com','anthropic.com',
   'docs.google.com','drive.google.com','mail.google.com','gmail.com',
   'outlook.com','office.com','live.com','hotmail.com','bing.com',
+  'atlassian.com','jira.atlassian.com','confluence.atlassian.com',
+  'dropbox.com','box.com','salesforce.com','hubspot.com',
+  'zoom.us','webex.com','teams.microsoft.com','meet.google.com',
 ]);
 
 // ─── Heuristic engine ───────────────────────────────────────────────────────
@@ -90,15 +94,22 @@ function checkDigitSubstitution(rawName) {
 
 function checkBrandSimilarity(domain) {
   const parts = domain.split('.');
+
+  // If this is a subdomain of an allowlisted domain, skip entirely
+  if (parts.length >= 2) {
+    const base = parts.slice(-2).join('.');
+    if (SAFE_DOMAINS.has(base) || SAFE_DOMAINS.has(domain)) {
+      return { score: 0, brand: null, distance: 0, detail: 'Subdomain of a trusted domain', type: 'safe_subdomain' };
+    }
+  }
+
   const rawName = parts[0].toLowerCase();
 
   // 1. Check digit/homoglyph substitution first (g00gle, m1crosoft)
   const digitSub = checkDigitSubstitution(rawName);
   if (digitSub) {
     return {
-      score: 98,
-      brand: digitSub.brand,
-      distance: 0,
+      score: 98, brand: digitSub.brand, distance: 0,
       detail: `"${rawName}" uses digit/character substitution to impersonate "${digitSub.brand}" — a textbook phishing technique`,
       type: 'digit_substitution',
     };
@@ -111,18 +122,31 @@ function checkBrandSimilarity(domain) {
   for (const brand of KNOWN_BRANDS) {
     if (cleanName === brand) return { score: 0, brand: null, distance: 0, detail: 'Exact brand match', type: 'exact' };
 
-    // Contains brand with extra chars (paypal-secure, google-login)
-    if (rawName.includes(brand) && rawName !== brand) {
+    // Contains brand with extra chars — brand must be 5+ chars to avoid false positives
+    if (brand.length >= 5 && rawName.includes(brand) && rawName !== brand) {
       return { score: 85, brand, distance: 0, detail: `Contains "${brand}" with extra characters — classic phishing pattern`, type: 'contains' };
     }
 
     const dist = levenshtein(cleanName, brand);
-    if (dist < minDist) { minDist = dist; closestBrand = brand; }
+
+    // Guard: only flag if both strings are similar in length (within 3 chars)
+    // This prevents 'slack' (5) matching 'apple' (5) with dist=2 being flagged
+    // when they are completely different words
+    const lengthDiff = Math.abs(cleanName.length - brand.length);
+    if (dist < minDist && lengthDiff <= 2) {
+      minDist = dist;
+      closestBrand = brand;
+    }
   }
 
-  if (minDist === 1) return { score: 92, brand: closestBrand, distance: 1, detail: `1 character away from "${closestBrand}" — likely typosquatting`, type: 'typosquat_1' };
-  if (minDist === 2) return { score: 70, brand: closestBrand, distance: 2, detail: `2 characters away from "${closestBrand}" — possible impersonation`, type: 'typosquat_2' };
-  if (minDist === 3) return { score: 35, brand: closestBrand, distance: 3, detail: `Similar to "${closestBrand}" — monitor`, type: 'similar' };
+  // For distance-2 matches, require brand to be 6+ chars to reduce false positives
+  // Short words like 'slack','apple','chase' are too short for distance-2 to be meaningful
+  if (minDist === 1 && closestBrand) {
+    return { score: 92, brand: closestBrand, distance: 1, detail: `1 character away from "${closestBrand}" — likely typosquatting`, type: 'typosquat_1' };
+  }
+  if (minDist === 2 && closestBrand && closestBrand.length >= 6) {
+    return { score: 65, brand: closestBrand, distance: 2, detail: `2 characters away from "${closestBrand}" — possible impersonation`, type: 'typosquat_2' };
+  }
 
   return { score: 0, brand: null, distance: minDist, detail: 'No brand similarity detected', type: 'clean' };
 }
