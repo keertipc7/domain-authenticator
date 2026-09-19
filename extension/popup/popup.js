@@ -1,5 +1,9 @@
 /**
- * Popup JS v2.3 — fixed: removed duplicate renderVotes, added missing init block
+ * Popup JS v2.5
+ * - Context menu support (opens with ?context=1&domain=...)
+ * - Fixed duplicate renderVotes
+ * - Vote button tick resets correctly
+ * - Community section hidden for allowlisted domains
  */
 
 const $ = id => document.getElementById(id);
@@ -15,7 +19,7 @@ function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
 function dotColor(s) { return s >= 70 ? '#ef4444' : s >= 40 ? '#f59e0b' : s >= 15 ? '#3b82f6' : '#10b981'; }
 
-// ─── Render full result ───────────────────────────────────────────────────────
+// ─── Render ───────────────────────────────────────────────────────────────────
 
 function render(data) {
   currentData = data;
@@ -23,22 +27,31 @@ function render(data) {
   hide($('state-error'));
   show($('state-results'));
 
+  // Hide community + report for allowlisted domains
+  if (data.allowlisted) {
+    $('community-section').style.display = 'none';
+    $('report-section').style.display = 'none';
+  } else {
+    $('community-section').style.display = '';
+    $('report-section').style.display = '';
+  }
+
   $('domain-name').textContent = data.domain;
 
-  const circ = 2 * Math.PI * 52;
+  const circ   = 2 * Math.PI * 52;
   const offset = circ - (data.trustScore / 100) * circ;
-  const vc = VERDICT_COLORS[data.verdict] || '#6b7280';
+  const vc     = VERDICT_COLORS[data.verdict] || '#6b7280';
 
   $('gauge-fill').style.strokeDashoffset = offset;
-  $('gauge-fill').style.stroke = vc;
-  $('trust-score').textContent = data.trustScore;
-  $('trust-score').style.color = vc;
-  $('verdict-badge').textContent = VERDICT_LABELS[data.verdict] || data.verdict;
-  $('verdict-badge').style.color = vc;
+  $('gauge-fill').style.stroke           = vc;
+  $('trust-score').textContent           = data.trustScore;
+  $('trust-score').style.color           = vc;
+  $('verdict-badge').textContent         = VERDICT_LABELS[data.verdict] || data.verdict;
+  $('verdict-badge').style.color         = vc;
 
   const ab = $('action-badge');
   ab.textContent = ACTION_LABELS[data.action] || data.action;
-  ab.className = `action-badge action-${data.action}`;
+  ab.className   = `action-badge action-${data.action}`;
 
   $('ai-summary').textContent   = data.ai?.summary || 'Analysis completed.';
   $('ai-technical').textContent = data.ai?.technical_detail || '';
@@ -72,11 +85,13 @@ function render(data) {
       $('signals').appendChild(row);
     }
   } else if (data.allowlisted) {
-    $('signals').innerHTML = '<div style="font-size:12px;color:#8b949e;padding:4px 0">Domain is on the global allowlist.</div>';
+    $('signals').innerHTML = '<div style="font-size:12px;color:#8b949e;padding:4px 0">Domain is on the global allowlist — verified trusted.</div>';
   }
 
-  renderVotes(data.community || { safe: 0, suspicious: 0, unsafe: 0, total: 0 });
-  restoreVoteButtonState(data.domain);
+  if (!data.allowlisted) {
+    renderVotes(data.community || { safe: 0, suspicious: 0, unsafe: 0, total: 0 });
+    restoreVoteButtonState(data.domain);
+  }
 }
 
 // ─── Community votes ──────────────────────────────────────────────────────────
@@ -93,11 +108,15 @@ function renderVotes(community) {
   else if (total < 5)   confidenceText = `${total} votes — building confidence`;
   else                  confidenceText = `${total} votes · ${community.confidence || 0}% confidence`;
 
-  const consensusHTML = community.verdict && community.verdict !== 'unrated' && community.verdict !== 'allowlisted' ? `
+  const showConsensus = community.verdict
+    && community.verdict !== 'unrated'
+    && community.verdict !== 'allowlisted';
+
+  const consensusHTML = showConsensus ? `
     <div class="vote-consensus">
       Community verdict: <span class="verdict-${community.verdict}">${verdictLabel(community.verdict)}</span>
-      ${community.verdict === 'community_safe'   ? ' → can downgrade a block to warn' : ''}
-      ${community.verdict === 'community_unsafe' ? ' → can upgrade an allow to warn'  : ''}
+      ${community.verdict === 'community_safe'   ? ' → shifts score toward safer' : ''}
+      ${community.verdict === 'community_unsafe' ? ' → shifts score toward riskier' : ''}
     </div>` : '';
 
   $('vote-bars').innerHTML = `
@@ -128,18 +147,25 @@ function verdictLabel(v) {
     community_mixed:        'Mixed signals',
     community_suspicious:   'Suspicious',
     community_unsafe:       'Unsafe',
-    unrated:                'Unrated',
-  }[v] || v;
+  }[v] || '';
+}
+
+function resetVoteButtons() {
+  document.querySelectorAll('.vote-btn').forEach(b => {
+    b.classList.remove('active');
+    b.textContent = b.dataset.vote.charAt(0).toUpperCase() + b.dataset.vote.slice(1);
+  });
 }
 
 async function restoreVoteButtonState(domain) {
-  const stored  = await chrome.storage.local.get('my_votes');
-  const myVote  = (stored.my_votes || {})[domain];
+  const stored = await chrome.storage.local.get('my_votes');
+  const myVote = (stored.my_votes || {})[domain];
+  resetVoteButtons();
   if (!myVote) return;
   document.querySelectorAll('.vote-btn').forEach(b => {
     if (b.dataset.vote === myVote) {
       b.classList.add('active');
-      b.textContent = '✓ ' + b.textContent.replace('✓ ', '');
+      b.textContent = '✓ ' + b.textContent;
     }
   });
 }
@@ -152,10 +178,12 @@ document.querySelectorAll('.vote-btn').forEach(btn => {
     const vote   = btn.dataset.vote;
     const domain = currentData.domain;
 
-    document.querySelectorAll('.vote-btn').forEach(b => b.classList.remove('active'));
+    // Reset all buttons then mark the clicked one
+    resetVoteButtons();
     btn.classList.add('active');
-    btn.textContent = '✓ ' + btn.textContent.replace('✓ ', '');
+    btn.textContent = '✓ ' + btn.textContent;
 
+    // Persist choice locally
     const stored  = await chrome.storage.local.get('my_votes');
     const myVotes = stored.my_votes || {};
     myVotes[domain] = vote;
@@ -208,41 +236,69 @@ $('report-submit').addEventListener('click', () => {
   });
 });
 
-// ─── Init — this was missing, causing the eternal loading state ───────────────
+// ─── Init ─────────────────────────────────────────────────────────────────────
 
-chrome.runtime.sendMessage({ type: 'GET_ANALYSIS' }, (data) => {
-  if (chrome.runtime.lastError) {
-    hide($('state-loading'));
-    $('error-msg').textContent = chrome.runtime.lastError.message || 'Extension error';
-    show($('state-error'));
-    return;
-  }
-  if (!data) {
-    hide($('state-loading'));
-    $('error-msg').textContent = 'No response from background script — try reloading the extension';
-    show($('state-error'));
-    return;
-  }
-  if (data.error) {
-    hide($('state-loading'));
-    $('error-msg').textContent = data.error;
-    show($('state-error'));
-    return;
-  }
-  if (data.trustScore !== undefined) {
-    render(data);
-  }
-});
+// Check if opened from context menu with a specific domain
+const urlParams     = new URLSearchParams(window.location.search);
+const contextDomain = urlParams.get('domain');
+
+if (contextDomain) {
+  // Opened via right-click context menu
+  $('domain-name').textContent = contextDomain;
+  chrome.storage.session.get('contextAnalysis', (stored) => {
+    const data = stored.contextAnalysis;
+    if (data && data.domain === contextDomain) {
+      render(data);
+    } else {
+      chrome.runtime.sendMessage({ type: 'GET_FRESH_ANALYSIS', domain: contextDomain }, (fresh) => {
+        if (fresh?.trustScore !== undefined) {
+          render(fresh);
+        } else {
+          hide($('state-loading'));
+          $('error-msg').textContent = `Could not analyze ${contextDomain}`;
+          show($('state-error'));
+        }
+      });
+    }
+  });
+} else {
+  // Normal popup — analyze current tab
+  chrome.runtime.sendMessage({ type: 'GET_ANALYSIS' }, (data) => {
+    if (chrome.runtime.lastError) {
+      hide($('state-loading'));
+      $('error-msg').textContent = chrome.runtime.lastError.message || 'Extension error';
+      show($('state-error'));
+      return;
+    }
+    if (!data) {
+      hide($('state-loading'));
+      $('error-msg').textContent = 'No response from background — try reloading the extension';
+      show($('state-error'));
+      return;
+    }
+    if (data.error) {
+      hide($('state-loading'));
+      $('error-msg').textContent = data.error;
+      show($('state-error'));
+      return;
+    }
+    if (data.trustScore !== undefined) render(data);
+  });
+}
 
 $('retry-btn').addEventListener('click', () => {
   hide($('state-error'));
   show($('state-loading'));
-  chrome.runtime.sendMessage({ type: 'GET_ANALYSIS' }, (data) => {
-    if (data?.trustScore !== undefined) render(data);
-    else {
-      $('error-msg').textContent = data?.error || 'Analysis failed';
-      hide($('state-loading'));
-      show($('state-error'));
-    }
-  });
+  const domain = contextDomain || null;
+  if (domain) {
+    chrome.runtime.sendMessage({ type: 'GET_FRESH_ANALYSIS', domain }, (data) => {
+      if (data?.trustScore !== undefined) render(data);
+      else { $('error-msg').textContent = data?.error || 'Analysis failed'; hide($('state-loading')); show($('state-error')); }
+    });
+  } else {
+    chrome.runtime.sendMessage({ type: 'GET_ANALYSIS' }, (data) => {
+      if (data?.trustScore !== undefined) render(data);
+      else { $('error-msg').textContent = data?.error || 'Analysis failed'; hide($('state-loading')); show($('state-error')); }
+    });
+  }
 });

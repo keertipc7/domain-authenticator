@@ -1,6 +1,8 @@
 /**
- * Background service worker v2.2
- * Fix: robust GET_ANALYSIS handler — falls back through multiple data sources
+ * Background service worker v2.3
+ * - Auto-analyzes every navigation, updates badge
+ * - Warning banner for caution domains
+ * - Context menu opens a popup window with full analysis
  */
 
 const WORKER_URL = 'https://domain-authenticator.keertipc7.workers.dev';
@@ -93,15 +95,12 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
 
     updateBadge(details.tabId, result);
 
-    // Store with BOTH the tab-specific key and a domain key for fallback
     await chrome.storage.session.set({
       [`result:${details.tabId}`]: result,
       [`domain:${domain}`]: result,
     });
 
-    if (result.action === 'block' && userOverrides[domain] !== 'safe') {
-      try { chrome.tabs.sendMessage(details.tabId, { type: 'BLOCK_PAGE', data: result }); } catch {}
-    } else if (result.verdict === 'caution') {
+    if (result.verdict === 'caution') {
       try { chrome.tabs.sendMessage(details.tabId, { type: 'WARN_BANNER', data: result }); } catch {}
     }
   } catch (e) {
@@ -141,72 +140,72 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   } else if (info.menuItemId === 'analyze-page' && tab?.url) {
     try { domain = new URL(tab.url).hostname.replace(/^www\./, ''); } catch {}
   }
-  if (!domain || !tab) return;
+  if (!domain) return;
+
+  // Pre-fetch analysis and store it
   const result = await analyzeDomain(domain);
   if (result) {
-    await chrome.storage.session.set({ [`result:${tab.id}`]: result, [`domain:${domain}`]: result });
-    try { chrome.tabs.sendMessage(tab.id, { type: 'CONTEXT_RESULT', data: result }); } catch {}
+    await chrome.storage.session.set({
+      [`domain:${domain}`]: result,
+      'contextAnalysis': result,
+    });
   }
+
+  // Open a small popup window with the full analysis
+  chrome.windows.create({
+    url: chrome.runtime.getURL('popup/popup.html') + '?context=1&domain=' + encodeURIComponent(domain),
+    type: 'popup',
+    width: 400,
+    height: 580,
+  });
 });
 
 // ─── Message handler ───────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
-  // ── GET_ANALYSIS: popup requesting current tab's analysis ──
   if (msg.type === 'GET_ANALYSIS') {
     (async () => {
       try {
-        // Step 1: get active tab
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab?.url) {
-          sendResponse({ error: 'No active tab found' });
-          return;
-        }
+        if (!tab?.url) { sendResponse({ error: 'No active tab found' }); return; }
 
         let url;
         try { url = new URL(tab.url); } catch {
-          sendResponse({ error: 'Could not parse tab URL' });
-          return;
+          sendResponse({ error: 'Could not parse tab URL' }); return;
         }
 
         if (SKIP_PROTOCOLS.some(p => url.protocol.startsWith(p))) {
-          sendResponse({ error: 'Not a web page — navigate to a website first' });
-          return;
+          sendResponse({ error: 'Not a web page — navigate to a website first' }); return;
         }
 
         const domain = url.hostname.replace(/^www\./, '');
 
-        // Step 2: check in-memory cache first (fastest)
+        // Step 1: in-memory cache
         const memCached = getCached(domain);
-        if (memCached) {
-          sendResponse(memCached);
-          return;
-        }
+        if (memCached) { sendResponse(memCached); return; }
 
-        // Step 3: check session storage by tab ID
+        // Step 2: session storage by tab ID
         try {
           const byTab = await chrome.storage.session.get(`result:${tab.id}`);
           if (byTab[`result:${tab.id}`]) {
             const result = byTab[`result:${tab.id}`];
             setCache(domain, result);
-            sendResponse(result);
-            return;
+            sendResponse(result); return;
           }
         } catch {}
 
-        // Step 4: check session storage by domain (fallback if tab ID changed)
+        // Step 3: session storage by domain
         try {
           const byDomain = await chrome.storage.session.get(`domain:${domain}`);
           if (byDomain[`domain:${domain}`]) {
             const result = byDomain[`domain:${domain}`];
             setCache(domain, result);
-            sendResponse(result);
-            return;
+            sendResponse(result); return;
           }
         } catch {}
 
-        // Step 5: fetch fresh from Worker
+        // Step 4: fetch fresh
         const result = await analyzeDomain(domain);
         if (result) {
           await chrome.storage.session.set({
@@ -215,17 +214,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           });
           sendResponse(result);
         } else {
-          sendResponse({ error: `Could not analyze ${domain} — check your Worker URL is correct` });
+          sendResponse({ error: `Could not analyze ${domain} — check your Worker URL` });
         }
       } catch (e) {
         console.error('GET_ANALYSIS error:', e);
-        sendResponse({ error: e.message || 'Unknown error in background script' });
+        sendResponse({ error: e.message || 'Unknown error' });
       }
     })();
-    return true; // Keep message channel open for async
+    return true;
   }
 
-  // ── GET_FRESH_ANALYSIS: popup requesting after a vote ──
   if (msg.type === 'GET_FRESH_ANALYSIS') {
     (async () => {
       try {
@@ -242,14 +240,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         } else {
           sendResponse({ error: 'Refresh failed' });
         }
-      } catch (e) {
-        sendResponse({ error: e.message });
-      }
+      } catch (e) { sendResponse({ error: e.message }); }
     })();
     return true;
   }
 
-  // ── OVERRIDE_DOMAIN: user clicked "proceed anyway" on block page ──
   if (msg.type === 'OVERRIDE_DOMAIN') {
     (async () => {
       const stored = await chrome.storage.local.get('user_overrides');
@@ -262,7 +257,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // ── SUBMIT_VOTE ──
   if (msg.type === 'SUBMIT_VOTE') {
     (async () => {
       try {
@@ -277,7 +271,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         });
         const data = await resp.json();
 
-        // Bust all caches so fresh analysis picks up new vote
         clearCache(msg.domain);
         try {
           const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -285,14 +278,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         } catch {}
 
         sendResponse(data);
-      } catch (e) {
-        sendResponse({ error: e.message });
-      }
+      } catch (e) { sendResponse({ error: e.message }); }
     })();
     return true;
   }
 
-  // ── REPORT_MISTAKE ──
   if (msg.type === 'REPORT_MISTAKE') {
     (async () => {
       try {
@@ -302,9 +292,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           body: JSON.stringify(msg.data),
         });
         sendResponse(await resp.json());
-      } catch (e) {
-        sendResponse({ error: e.message });
-      }
+      } catch (e) { sendResponse({ error: e.message }); }
     })();
     return true;
   }

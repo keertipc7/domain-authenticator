@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Domain Authenticator",
-  "description": "AI-powered domain trust scoring. Analyzes every site you visit and blocks dangerous domains in real time.",
+  "description": "AI-powered domain trust scoring. Analyzes every site you visit and shows a detailed trust breakdown.",
   "version": "2.0.0",
   "permissions": [
     "activeTab",
@@ -9,9 +9,13 @@
     "storage",
     "contextMenus",
     "webNavigation",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "windows"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>",
+    "https://domain-authenticator.keertipc7.workers.dev/*"
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
@@ -21,7 +25,8 @@
     }
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {

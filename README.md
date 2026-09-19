@@ -32,7 +32,6 @@ Visit **[domain-authenticator-demo.pages.dev](https://domain-authenticator-demo.
 | `g00gle.xyz` | Dangerous — blocked |
 | `paypal-secure.top` | Dangerous — blocked |
 | `micr0soft-login.buzz` | Dangerous — blocked |
-| `bbc.com` | Likely safe |
 
 ---
 
@@ -60,7 +59,7 @@ Click **Load unpacked** → select the `extension/` folder from the cloned repo.
 
 **5. Browse normally**
 
-The shield icon appears in your toolbar. Navigate to any site — dangerous domains are blocked automatically, suspicious ones get a warning banner. Click the icon for the full analysis.
+The shield icon appears in your extensions. Navigate to any site - click the icon for the full analysis.
 
 ---
 
@@ -117,7 +116,7 @@ Edge API (Cloudflare Worker)
 
 ## Community voting
 
-Every user gets a persistent anonymous ID. Votes are stored globally and feed back into scoring:
+Every user gets a persistent anonymous ID. Votes are stored globally and feed back into scoring for the domains which are not in the verified list of the extension:
 
 - One vote per user per domain (vote can be changed)
 - Votes are weighted by reviewer activity — active reviewers carry more weight, capped at 2×
