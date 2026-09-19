@@ -336,8 +336,7 @@ function voterWeight(voteCount) {
 }
 
 function communityScore(votes) {
-  const wtotal = votes.wsafe + votes.wsuspicious + votes.wunsafe;
-
+  const wtotal = (votes.wsafe || 0) + (votes.wsuspicious || 0) + (votes.wunsafe || 0);
   if (wtotal === 0 || votes.total < 2) {
     // Need at least 2 votes before community signal kicks in
     return { 
@@ -380,8 +379,7 @@ function communityScore(votes) {
   return {
     score,
     confidence,
-    detail: `${votes.total} vote${votes.total !== 1 ? 's' : ''}: ${votes.safe} safe, ${votes.suspicious} suspicious, ${votes.unsafe} unsafe`,
-    verdict,
+    detail: `${votes.total} vote${votes.total !== 1 ? 's' : ''}: ${votes.safe || 0} safe, ${votes.suspicious || 0} suspicious, ${votes.unsafe || 0} unsafe`,    verdict,
     breakdown: {
       safe: votes.safe, suspicious: votes.suspicious, unsafe: votes.unsafe,
       total: votes.total,
