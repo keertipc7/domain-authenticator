@@ -1,19 +1,21 @@
 /**
- * Popup JS v2.1
- * Fix: after voting, fetch fresh analysis from Worker to update community bars
+ * Popup JS v2.3 — fixed: removed duplicate renderVotes, added missing init block
  */
 
 const $ = id => document.getElementById(id);
+
 const VERDICT_COLORS = { trusted:'#10b981', likely_safe:'#3b82f6', caution:'#f59e0b', suspicious:'#f97316', dangerous:'#ef4444' };
 const VERDICT_LABELS = { trusted:'Trusted', likely_safe:'Likely safe', caution:'Use caution', suspicious:'Suspicious', dangerous:'Dangerous' };
-const ACTION_LABELS = { allow:'Allowed', warn:'Warning shown', block:'Blocked' };
-const SIGNAL_LABELS = { brandSimilarity:'Brand match', entropy:'Randomness', tld:'TLD risk', length:'Length', subdomain:'Subdomains', specialChars:'Characters' };
+const ACTION_LABELS  = { allow:'Allowed', warn:'Warning shown', block:'Blocked' };
+const SIGNAL_LABELS  = { brandSimilarity:'Brand match', entropy:'Randomness', tld:'TLD risk', length:'Length', subdomain:'Subdomains', specialChars:'Characters' };
 
 let currentData = null;
 
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
 function dotColor(s) { return s >= 70 ? '#ef4444' : s >= 40 ? '#f59e0b' : s >= 15 ? '#3b82f6' : '#10b981'; }
+
+// ─── Render full result ───────────────────────────────────────────────────────
 
 function render(data) {
   currentData = data;
@@ -26,6 +28,7 @@ function render(data) {
   const circ = 2 * Math.PI * 52;
   const offset = circ - (data.trustScore / 100) * circ;
   const vc = VERDICT_COLORS[data.verdict] || '#6b7280';
+
   $('gauge-fill').style.strokeDashoffset = offset;
   $('gauge-fill').style.stroke = vc;
   $('trust-score').textContent = data.trustScore;
@@ -37,7 +40,7 @@ function render(data) {
   ab.textContent = ACTION_LABELS[data.action] || data.action;
   ab.className = `action-badge action-${data.action}`;
 
-  $('ai-summary').textContent = data.ai?.summary || 'Analysis completed.';
+  $('ai-summary').textContent   = data.ai?.summary || 'Analysis completed.';
   $('ai-technical').textContent = data.ai?.technical_detail || '';
 
   $('ai-flags').innerHTML = '';
@@ -76,60 +79,33 @@ function render(data) {
   restoreVoteButtonState(data.domain);
 }
 
-function renderVotes(community) {
-  const total = Math.max(community.total || 0, 1);
-  $('vote-bars').innerHTML = [
-    { label: 'Safe', key: 'safe', cls: 'safe', count: community.safe || 0 },
-    { label: 'Suspicious', key: 'suspicious', cls: 'suspicious', count: community.suspicious || 0 },
-    { label: 'Unsafe', key: 'unsafe', cls: 'unsafe', count: community.unsafe || 0 },
-  ].map(b => `
-    <div class="vote-bar-row">
-      <span class="vote-bar-label">${b.label}</span>
-      <div class="vote-bar-track"><div class="vote-bar-fill vote-bar-fill-${b.cls}" style="width:${Math.round((b.count/total)*100)}%"></div></div>
-      <span class="vote-bar-count">${b.count}</span>
-    </div>
-  `).join('');
-}
-
-// Restore previously cast vote button state from storage
-async function restoreVoteButtonState(domain) {
-  const stored = await chrome.storage.local.get('my_votes');
-  const myVotes = stored.my_votes || {};
-  const myVote = myVotes[domain];
-  if (myVote) {
-    document.querySelectorAll('.vote-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.vote === myVote);
-    });
-  }
-}
-
-// ─── Vote buttons ─────────────────────────────────────────────────────────────
+// ─── Community votes ──────────────────────────────────────────────────────────
 
 function renderVotes(community) {
-  const total = community?.breakdown?.total || community?.total || 0;
+  const total      = community?.breakdown?.total      || community?.total      || 0;
   const safe       = community?.breakdown?.safe       || community?.safe       || 0;
   const suspicious = community?.breakdown?.suspicious || community?.suspicious || 0;
   const unsafe     = community?.breakdown?.unsafe     || community?.unsafe     || 0;
-  const wtotal = Math.max(total, 1);
 
-  // Confidence label
-  let confidenceText = '';
-  if (total === 0) confidenceText = 'No votes yet — be the first';
+  let confidenceText;
+  if      (total === 0) confidenceText = 'No votes yet — be the first';
   else if (total === 1) confidenceText = '1 vote — need 2+ to activate signal';
   else if (total < 5)   confidenceText = `${total} votes — building confidence`;
   else                  confidenceText = `${total} votes · ${community.confidence || 0}% confidence`;
+
+  const consensusHTML = community.verdict && community.verdict !== 'unrated' && community.verdict !== 'allowlisted' ? `
+    <div class="vote-consensus">
+      Community verdict: <span class="verdict-${community.verdict}">${verdictLabel(community.verdict)}</span>
+      ${community.verdict === 'community_safe'   ? ' → can downgrade a block to warn' : ''}
+      ${community.verdict === 'community_unsafe' ? ' → can upgrade an allow to warn'  : ''}
+    </div>` : '';
 
   $('vote-bars').innerHTML = `
     <div class="vote-confidence">${confidenceText}</div>
     ${renderBar('Safe',       safe,       total, 'safe')}
     ${renderBar('Suspicious', suspicious, total, 'suspicious')}
     ${renderBar('Unsafe',     unsafe,     total, 'unsafe')}
-    ${community.verdict && community.verdict !== 'unrated' ? `
-      <div class="vote-consensus">
-        Community verdict: <span class="verdict-${community.verdict}">${verdictLabel(community.verdict)}</span>
-        ${community.verdict === 'community_safe' ? '→ can downgrade a block to warn' : ''}
-        ${community.verdict === 'community_unsafe' ? '→ can upgrade an allow to warn' : ''}
-      </div>` : ''}
+    ${consensusHTML}
   `;
 }
 
@@ -156,20 +132,31 @@ function verdictLabel(v) {
   }[v] || v;
 }
 
-// Vote buttons
+async function restoreVoteButtonState(domain) {
+  const stored  = await chrome.storage.local.get('my_votes');
+  const myVote  = (stored.my_votes || {})[domain];
+  if (!myVote) return;
+  document.querySelectorAll('.vote-btn').forEach(b => {
+    if (b.dataset.vote === myVote) {
+      b.classList.add('active');
+      b.textContent = '✓ ' + b.textContent.replace('✓ ', '');
+    }
+  });
+}
+
+// ─── Vote buttons ─────────────────────────────────────────────────────────────
+
 document.querySelectorAll('.vote-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (!currentData) return;
-    const vote = btn.dataset.vote;
+    const vote   = btn.dataset.vote;
     const domain = currentData.domain;
 
-    // Optimistic UI — show immediately
     document.querySelectorAll('.vote-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     btn.textContent = '✓ ' + btn.textContent.replace('✓ ', '');
 
-    // Persist vote choice locally (survives popup close)
-    const stored = await chrome.storage.local.get('my_votes');
+    const stored  = await chrome.storage.local.get('my_votes');
     const myVotes = stored.my_votes || {};
     myVotes[domain] = vote;
     await chrome.storage.local.set({ my_votes: myVotes });
@@ -184,12 +171,8 @@ document.querySelectorAll('.vote-btn').forEach(btn => {
           ? `Vote recorded (weight: ${weight}x — thanks for being an active reviewer!)`
           : 'Vote recorded — thank you!';
 
-        // Refresh full analysis to get updated community object
         chrome.runtime.sendMessage({ type: 'GET_FRESH_ANALYSIS', domain }, (fresh) => {
-          if (fresh?.community) {
-            renderVotes(fresh.community);
-            currentData = fresh;
-          }
+          if (fresh?.community) { renderVotes(fresh.community); currentData = fresh; }
           setTimeout(() => hide($('vote-feedback')), 4000);
         });
       } else {
@@ -200,16 +183,66 @@ document.querySelectorAll('.vote-btn').forEach(btn => {
   });
 });
 
-// Restore vote button state when popup opens
-async function restoreVoteButtonState(domain) {
-  const stored = await chrome.storage.local.get('my_votes');
-  const myVote = (stored.my_votes || {})[domain];
-  if (myVote) {
-    document.querySelectorAll('.vote-btn').forEach(b => {
-      if (b.dataset.vote === myVote) {
-        b.classList.add('active');
-        b.textContent = '✓ ' + b.textContent.replace('✓ ', '');
-      }
-    });
+// ─── Report AI mistake ────────────────────────────────────────────────────────
+
+$('report-btn').addEventListener('click', () => {
+  const form = $('report-form');
+  form.classList.contains('hidden') ? show(form) : hide(form);
+});
+
+$('report-submit').addEventListener('click', () => {
+  if (!currentData) return;
+  const expected = $('report-expected').value;
+  const comment  = $('report-comment').value;
+  if (!expected) { $('report-expected').style.borderColor = '#ef4444'; return; }
+
+  chrome.runtime.sendMessage({
+    type: 'REPORT_MISTAKE',
+    data: { domain: currentData.domain, expected_verdict: expected, actual_verdict: currentData.verdict, comment },
+  }, (resp) => {
+    if (resp?.success) {
+      hide($('report-form'));
+      $('report-btn').textContent = '✓ Report submitted — thank you!';
+      $('report-btn').disabled = true;
+    }
+  });
+});
+
+// ─── Init — this was missing, causing the eternal loading state ───────────────
+
+chrome.runtime.sendMessage({ type: 'GET_ANALYSIS' }, (data) => {
+  if (chrome.runtime.lastError) {
+    hide($('state-loading'));
+    $('error-msg').textContent = chrome.runtime.lastError.message || 'Extension error';
+    show($('state-error'));
+    return;
   }
-}
+  if (!data) {
+    hide($('state-loading'));
+    $('error-msg').textContent = 'No response from background script — try reloading the extension';
+    show($('state-error'));
+    return;
+  }
+  if (data.error) {
+    hide($('state-loading'));
+    $('error-msg').textContent = data.error;
+    show($('state-error'));
+    return;
+  }
+  if (data.trustScore !== undefined) {
+    render(data);
+  }
+});
+
+$('retry-btn').addEventListener('click', () => {
+  hide($('state-error'));
+  show($('state-loading'));
+  chrome.runtime.sendMessage({ type: 'GET_ANALYSIS' }, (data) => {
+    if (data?.trustScore !== undefined) render(data);
+    else {
+      $('error-msg').textContent = data?.error || 'Analysis failed';
+      hide($('state-loading'));
+      show($('state-error'));
+    }
+  });
+});

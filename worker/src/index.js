@@ -7,14 +7,14 @@
 // ─── Brand & TLD data ───────────────────────────────────────────────────────
 
 const KNOWN_BRANDS = [
-  // Long enough to be meaningful for distance checks (6+ chars preferred)
-  'google','facebook','amazon','microsoft','netflix','paypal',
+  'google','facebook','amazon','apple','microsoft','netflix','paypal',
   'instagram','twitter','linkedin','whatsapp','telegram','github',
   'dropbox','adobe','salesforce','stripe','shopify','coinbase',
-  'binance','bankofamerica','wellsfargo','citibank','cloudflare',
-  'discord','spotify','youtube','walmart','ebay',
-  // Shorter brands only where typosquatting is very common
-  'paypal','apple','chase','gmail','yahoo','outlook',
+  'binance','chase','bankofamerica','wellsfargo','citibank','hsbc',
+  'cloudflare','aws','azure','slack','zoom','spotify','uber',
+  'airbnb','reddit','discord','steam','walmart','ebay','fedex',
+  'dhl','ups','usps','irs','gmail','outlook','office','onedrive',
+  'icloud','yahoo','bing','linkedin','tiktok','snapchat','pinterest',
 ];
 
 // Digit/homoglyph substitution map — catches g00gle, m1crosoft, paypa1, etc.
@@ -31,43 +31,17 @@ const HIGH_RISK_TLDS = [
 ];
 const MEDIUM_RISK_TLDS = ['info','biz','online','site','space','website','store'];
 const TRUSTED_TLDS = ['com','org','net','edu','gov','mil','int','co.uk','org.uk','ac.uk','de','fr','jp','au','ca','io','dev','app'];
+
 const SAFE_DOMAINS = new Set([
-  // Google
-  'google.com','youtube.com','gmail.com','docs.google.com','drive.google.com',
-  'mail.google.com','maps.google.com','calendar.google.com','meet.google.com',
-  // Microsoft
-  'microsoft.com','outlook.com','office.com','live.com','hotmail.com',
-  'teams.microsoft.com','sharepoint.com','onedrive.live.com','bing.com',
-  'azure.microsoft.com','login.microsoftonline.com',
-  // Apple
-  'apple.com','icloud.com','appleid.apple.com','support.apple.com',
-  // Meta
-  'facebook.com','instagram.com','whatsapp.com','messenger.com',
-  // Social / comms
-  'twitter.com','x.com','linkedin.com','reddit.com','discord.com',
-  'slack.com','app.slack.com','files.slack.com','hooks.slack.com',
-  // Dev
-  'github.com','stackoverflow.com','gitlab.com','bitbucket.org',
-  'npmjs.com','pypi.org','developer.mozilla.org',
-  // Productivity
-  'notion.so','figma.com','miro.com','airtable.com','trello.com',
-  'asana.com','jira.atlassian.com','confluence.atlassian.com','atlassian.com',
-  'zoom.us','webex.com','whereby.com','loom.com',
-  // Cloud
-  'cloudflare.com','aws.amazon.com','console.aws.amazon.com',
-  'cloud.google.com','portal.azure.com','vercel.com','netlify.com',
-  'heroku.com','digitalocean.com','render.com',
-  // Commerce / finance
-  'amazon.com','ebay.com','paypal.com','stripe.com','shopify.com',
-  'square.com','coinbase.com','chase.com','bankofamerica.com',
-  // Media / content
-  'netflix.com','spotify.com','twitch.tv','medium.com','substack.com',
-  'wikipedia.org','archive.org',
-  // AI
-  'openai.com','anthropic.com','claude.ai','chat.openai.com',
-  'huggingface.co','colab.research.google.com',
-  // Other common
-  'dropbox.com','box.com','canva.com','adobe.com','salesforce.com',
+  'google.com','youtube.com','facebook.com','amazon.com','wikipedia.org',
+  'twitter.com','x.com','instagram.com','linkedin.com','reddit.com',
+  'github.com','stackoverflow.com','apple.com','microsoft.com','netflix.com',
+  'cloudflare.com','dash.cloudflare.com','developers.cloudflare.com','blog.cloudflare.com',
+  'workers.cloudflare.com','discord.com','whatsapp.com','zoom.us','spotify.com',
+  'paypal.com','stripe.com','slack.com','notion.so','figma.com',
+  'vercel.com','netlify.com','medium.com','openai.com','anthropic.com',
+  'docs.google.com','drive.google.com','mail.google.com','gmail.com',
+  'outlook.com','office.com','live.com','hotmail.com','bing.com',
 ]);
 
 // ─── Heuristic engine ───────────────────────────────────────────────────────
@@ -117,96 +91,40 @@ function checkDigitSubstitution(rawName) {
 function checkBrandSimilarity(domain) {
   const parts = domain.split('.');
   const rawName = parts[0].toLowerCase();
-  const tld = parts.slice(1).join('.');
 
-  // Skip benign common subdomains — these add no brand signal
-  const BENIGN_SUBDOMAINS = new Set([
-    'app','www','mail','api','cdn','static','assets','media','img',
-    'auth','login','accounts','portal','dashboard','admin','dev',
-    'staging','beta','help','docs','support','status','blog',
-  ]);
-
-  // If this is a subdomain of a known safe domain, skip entirely
-  if (parts.length >= 3) {
-    const baseDomain = parts.slice(-2).join('.');
-    if (SAFE_DOMAINS.has(baseDomain) || SAFE_DOMAINS.has(domain)) {
-      return { score: 0, brand: null, distance: 0, detail: 'Subdomain of a trusted domain', type: 'safe_subdomain' };
-    }
-    // Benign subdomain prefix — analyze base domain only
-    if (BENIGN_SUBDOMAINS.has(rawName)) {
-      return checkBrandSimilarityOnName(parts.slice(1, -1).join('') || parts[1], domain, tld);
-    }
-  }
-
-  return checkBrandSimilarityOnName(rawName, domain, tld);
-}
-
-function checkBrandSimilarityOnName(rawName, domain, tld) {
-  // 1. Digit/homoglyph substitution (g00gle → google)
+  // 1. Check digit/homoglyph substitution first (g00gle, m1crosoft)
   const digitSub = checkDigitSubstitution(rawName);
   if (digitSub) {
     return {
-      score: 98, brand: digitSub.brand, distance: 0,
-      detail: `"${rawName}" uses digit substitution to impersonate "${digitSub.brand}"`,
+      score: 98,
+      brand: digitSub.brand,
+      distance: 0,
+      detail: `"${rawName}" uses digit/character substitution to impersonate "${digitSub.brand}" — a textbook phishing technique`,
       type: 'digit_substitution',
     };
   }
 
+  // 2. Strip non-alpha for Levenshtein comparison
   const cleanName = rawName.replace(/[-_0-9]/g, '');
-
   let closestBrand = null, minDist = Infinity;
 
   for (const brand of KNOWN_BRANDS) {
-    // Exact match = legitimate
-    if (cleanName === brand) {
-      return { score: 0, brand: null, distance: 0, detail: 'Exact brand match', type: 'exact' };
-    }
+    if (cleanName === brand) return { score: 0, brand: null, distance: 0, detail: 'Exact brand match', type: 'exact' };
 
-    // Contains brand with extra chars — but only flag if domain is NOT already
-    // a well-known legitimate product (e.g. app.slack.com contains 'app' not 'slack')
+    // Contains brand with extra chars (paypal-secure, google-login)
     if (rawName.includes(brand) && rawName !== brand) {
-      // Extra check: the brand must be at least 5 chars to avoid
-      // short-brand false positives (e.g. 'aws' in 'lawson')
-      if (brand.length >= 5) {
-        return {
-          score: 82, brand, distance: 0,
-          detail: `Contains "${brand}" with extra characters — verify this is the official site`,
-          type: 'contains',
-        };
-      }
+      return { score: 85, brand, distance: 0, detail: `Contains "${brand}" with extra characters — classic phishing pattern`, type: 'contains' };
     }
 
     const dist = levenshtein(cleanName, brand);
-
-    // Only count distance if the brand is long enough relative to distance
-    // Short brand names (≤5 chars) need distance ≤1 to be meaningful
-    // Longer brands (6+ chars) can tolerate distance 2
-    const maxMeaningfulDist = brand.length <= 5 ? 1 : 2;
-    if (dist <= maxMeaningfulDist && dist < minDist) {
-      minDist = dist;
-      closestBrand = brand;
-    }
+    if (dist < minDist) { minDist = dist; closestBrand = brand; }
   }
 
-  // Score based on distance — with minimum brand length guard
-  if (closestBrand) {
-    if (minDist === 1) {
-      return {
-        score: 90, brand: closestBrand, distance: 1,
-        detail: `1 character away from "${closestBrand}" — likely typosquatting`,
-        type: 'typosquat_1',
-      };
-    }
-    if (minDist === 2 && closestBrand.length >= 6) {
-      return {
-        score: 65, brand: closestBrand, distance: 2,
-        detail: `2 characters away from "${closestBrand}" — possible impersonation`,
-        type: 'typosquat_2',
-      };
-    }
-  }
+  if (minDist === 1) return { score: 92, brand: closestBrand, distance: 1, detail: `1 character away from "${closestBrand}" — likely typosquatting`, type: 'typosquat_1' };
+  if (minDist === 2) return { score: 70, brand: closestBrand, distance: 2, detail: `2 characters away from "${closestBrand}" — possible impersonation`, type: 'typosquat_2' };
+  if (minDist === 3) return { score: 35, brand: closestBrand, distance: 3, detail: `Similar to "${closestBrand}" — monitor`, type: 'similar' };
 
-  return { score: 0, brand: null, distance: minDist || 99, detail: 'No brand similarity detected', type: 'clean' };
+  return { score: 0, brand: null, distance: minDist, detail: 'No brand similarity detected', type: 'clean' };
 }
 
 function checkEntropy(domain) {
@@ -236,32 +154,14 @@ function checkLength(domain) {
 
 function checkSubdomain(hostname) {
   const parts = hostname.split('.');
-  if (parts.length <= 2) return { score: 0, detail: 'Normal subdomain structure' };
-
-  const baseDomain = parts.slice(-2).join('.');
-
-  // Trusted base domain = subdomains are fine
-  if (SAFE_DOMAINS.has(baseDomain) || SAFE_DOMAINS.has(hostname)) {
-    return { score: 0, detail: 'Subdomain of a trusted domain' };
-  }
-
-  // Check if any subdomain segment impersonates a brand
-  const subParts = parts.slice(0, -2);
-  for (const sub of subParts) {
+  if (parts.length > 3) {
+    const subs = parts.slice(0, -2).join('.');
     for (const brand of KNOWN_BRANDS) {
-      if (brand.length >= 5 && sub.includes(brand)) {
-        return {
-          score: 95,
-          detail: `Brand "${brand}" used as subdomain of an untrusted domain — classic phishing pattern`,
-        };
-      }
+      if (subs.includes(brand)) return { score: 97, detail: `Brand "${brand}" used as subdomain — classic phishing technique (e.g. paypal.com.evil.xyz)` };
     }
+    if (parts.length > 4) return { score: 55, detail: 'Excessive subdomain depth — unusual for legitimate sites' };
+    return { score: 20, detail: 'Multiple subdomains present' };
   }
-
-  // Deep nesting on unknown domain is mildly suspicious
-  if (parts.length > 4) return { score: 40, detail: 'Unusual subdomain depth on an unknown domain' };
-  if (parts.length > 3) return { score: 10, detail: 'Multiple subdomains — verify this is the official site' };
-
   return { score: 0, detail: 'Normal subdomain structure' };
 }
 
@@ -310,148 +210,50 @@ function checkCombinationOverrides(heuristics) {
   return overrides;
 }
 
-// ─── Community voting v2 ─────────────────────────────────────────────────────
+// ─── Community voting ───────────────────────────────────────────────────────
 
 async function getCommunityVotes(env, domain) {
   try {
     const data = await env.COMMUNITY_VOTES.get(`votes:${domain}`, 'json');
-    return data || { 
-      safe: 0, suspicious: 0, unsafe: 0,       // raw vote counts
-      wsafe: 0, wsuspicious: 0, wunsafe: 0,     // weighted vote totals
-      total: 0, voters: {}                        // voter registry
-    };
+    return data || { safe: 0, suspicious: 0, unsafe: 0, wsafe: 0, wsuspicious: 0, wunsafe: 0, total: 0, voters: {} };
   } catch {
     return { safe: 0, suspicious: 0, unsafe: 0, wsafe: 0, wsuspicious: 0, wunsafe: 0, total: 0, voters: {} };
   }
 }
 
-// Voter weight based on how many domains they've analyzed
-// More engagement = more trust in their vote, capped at 2x
-function voterWeight(voteCount) {
-  if (voteCount >= 50) return 2.0;
-  if (voteCount >= 20) return 1.75;
-  if (voteCount >= 10) return 1.5;
-  if (voteCount >= 5)  return 1.25;
-  return 1.0;
-}
-
 function communityScore(votes) {
-  const wtotal = (votes.wsafe || 0) + (votes.wsuspicious || 0) + (votes.wunsafe || 0);
-  if (wtotal === 0 || votes.total < 2) {
-    // Need at least 2 votes before community signal kicks in
-    return { 
-      score: 0, 
-      confidence: 0, 
-      detail: votes.total === 1 
-        ? '1 community vote (need 2+ for signal to activate)' 
-        : 'No community votes yet',
-      verdict: 'unrated',
-      breakdown: votes,
-    };
+  // Normalise — handle old format entries that don't have weighted fields
+  const safe       = votes.safe       || 0;
+  const suspicious = votes.suspicious || 0;
+  const unsafe     = votes.unsafe     || 0;
+  const total      = votes.total      || 0;
+  // Use weighted totals if present, fall back to raw counts
+  const wsafe       = votes.wsafe       || safe;
+  const wsuspicious = votes.wsuspicious || suspicious;
+  const wunsafe     = votes.wunsafe     || unsafe;
+  const wtotal      = wsafe + wsuspicious + wunsafe;
+
+  if (total === 0 || wtotal === 0) {
+    return { score: 0, confidence: 0, detail: 'No community votes yet', verdict: 'unrated', breakdown: { safe, suspicious, unsafe, total } };
   }
 
-  const safeRatio      = votes.wsafe       / wtotal;
-  const unsafeRatio    = votes.wunsafe     / wtotal;
-  const suspiciousRatio = votes.wsuspicious / wtotal;
+  const safeRatio       = wsafe       / wtotal;
+  const unsafeRatio     = wunsafe     / wtotal;
+  const suspiciousRatio = wsuspicious / wtotal;
+  const confidence      = Math.min(100, total * 10);
 
-  // Confidence grows with vote count, plateaus at 10 votes
-  const confidence = Math.min(100, votes.total * 10);
-
-  // Thresholds: need clear majority (60%+) for strong signals
   let score, verdict;
-  if (unsafeRatio >= 0.6) {
-    score = 88 + Math.min(10, votes.total);  // grows with more votes, max 98
-    verdict = 'community_unsafe';
-  } else if (unsafeRatio >= 0.4) {
-    score = 65;
-    verdict = 'community_suspicious';
-  } else if (safeRatio >= 0.6) {
-    score = 0;
-    verdict = 'community_safe';
-  } else if (safeRatio >= 0.4) {
-    score = 10;
-    verdict = 'community_leaning_safe';
-  } else {
-    score = 30;
-    verdict = 'community_mixed';
-  }
+  if (unsafeRatio >= 0.6)      { score = 88 + Math.min(10, total); verdict = 'community_unsafe'; }
+  else if (unsafeRatio >= 0.4) { score = 65;  verdict = 'community_suspicious'; }
+  else if (safeRatio >= 0.6)   { score = 0;   verdict = 'community_safe'; }
+  else if (safeRatio >= 0.4)   { score = 10;  verdict = 'community_leaning_safe'; }
+  else                         { score = 30;  verdict = 'community_mixed'; }
 
   return {
-    score,
-    confidence,
-    detail: `${votes.total} vote${votes.total !== 1 ? 's' : ''}: ${votes.safe || 0} safe, ${votes.suspicious || 0} suspicious, ${votes.unsafe || 0} unsafe`,    verdict,
-    breakdown: {
-      safe: votes.safe, suspicious: votes.suspicious, unsafe: votes.unsafe,
-      total: votes.total,
-      weighted: { safe: votes.wsafe.toFixed(1), suspicious: votes.wsuspicious.toFixed(1), unsafe: votes.wunsafe.toFixed(1) },
-    },
+    score, confidence, verdict,
+    detail: `${total} vote${total !== 1 ? 's' : ''}: ${safe} safe, ${suspicious} suspicious, ${unsafe} unsafe`,
+    breakdown: { safe, suspicious, unsafe, total },
   };
-}
-
-// ─── Vote handler ─────────────────────────────────────────────────────────────
-
-async function handleVote(request, env) {
-  const { domain, vote, userId } = await request.json();
-
-  if (!domain || !['safe', 'suspicious', 'unsafe'].includes(vote)) {
-    return jsonResp({ error: 'Need domain + vote (safe|suspicious|unsafe)' }, 400);
-  }
-
-  const hostname = domain.toLowerCase().replace(/^www\./, '').trim();
-  const key = `votes:${hostname}`;
-  
-  // Load existing votes
-  const existing = await env.COMMUNITY_VOTES.get(key, 'json') || {
-    safe: 0, suspicious: 0, unsafe: 0,
-    wsafe: 0, wsuspicious: 0, wunsafe: 0,
-    total: 0, voters: {}
-  };
-
-  const uid = userId || 'anon';
-
-  // Load voter history to determine weight
-  const voterKey = `voter:${uid}`;
-  const voterData = await env.COMMUNITY_VOTES.get(voterKey, 'json') || { voteCount: 0, votes: {} };
-  const weight = voterWeight(voterData.voteCount);
-
-  // Reverse previous vote for this domain if exists
-  const previousVote = existing.voters[uid];
-  if (previousVote) {
-    existing[previousVote] = Math.max(0, existing[previousVote] - 1);
-    existing[`w${previousVote}`] = Math.max(0, (existing[`w${previousVote}`] || 0) - (voterData.votes[hostname]?.weight || 1));
-    existing.total = Math.max(0, existing.total - 1);
-  }
-
-  // Apply new vote
-  existing[vote]++;
-  existing[`w${vote}`] = (existing[`w${vote}`] || 0) + weight;
-  existing.total++;
-  existing.voters[uid] = vote;
-
-  // Save updated votes
-  await env.COMMUNITY_VOTES.put(key, JSON.stringify(existing));
-
-  // Update voter history (so their future votes get correct weight)
-  if (uid !== 'anon') {
-    voterData.voteCount = (voterData.voteCount || 0) + (previousVote ? 0 : 1); // Only increment for new votes
-    voterData.votes[hostname] = { vote, weight };
-    await env.COMMUNITY_VOTES.put(voterKey, JSON.stringify(voterData), { expirationTtl: 31536000 }); // 1 year
-  }
-
-  // Bust the domain analysis cache so next fetch reflects new vote
-  await env.DOMAIN_CACHE.delete(`v2:${hostname}`);
-
-  return jsonResp({
-    success: true,
-    domain: hostname,
-    yourWeight: weight,
-    votes: {
-      safe: existing.safe,
-      suspicious: existing.suspicious,
-      unsafe: existing.unsafe,
-      total: existing.total,
-    },
-  });
 }
 
 // ─── Workers AI ─────────────────────────────────────────────────────────────
@@ -555,81 +357,56 @@ function smartFallback(heuristics, overrides) {
 // ─── Scoring engine ─────────────────────────────────────────────────────────
 
 function computeScore(heuristics, aiResult, community, overrides) {
-  // Combo overrides always win
+  // Combo overrides short-circuit scoring — always critical
   if (overrides.some(o => o.level === 'critical')) {
     return { trustScore: 4, riskScore: 96, verdict: 'dangerous', action: 'block' };
   }
 
   const weights = {
-    brandSimilarity: 0.30,
-    tld: 0.18,
+    brandSimilarity: 0.30, // Increased — brand impersonation is the #1 signal
+    tld: 0.18,             // Increased — TLD is highly predictive
     entropy: 0.10,
     subdomain: 0.10,
     specialChars: 0.05,
     length: 0.05,
-    ai: 0.22,
+    ai: 0.22,              // AI gets significant weight when available
   };
 
   const aiScoreMap = { low: 0, medium: 45, high: 80, critical: 97, unknown: 40 };
   const aiScore = aiScoreMap[aiResult.risk] || 40;
 
-  // Community adjusts base risk score directly if confidence is high enough
+  // Community modifies final score if confidence is high enough
   let communityAdjust = 0;
-  if (community.confidence >= 20) {
-    // Scale adjustment by confidence (max ±15 points at full confidence)
-    const adjustScale = (community.confidence / 100) * 15;
-    if (community.verdict === 'community_unsafe')       communityAdjust = +adjustScale;
-    else if (community.verdict === 'community_suspicious') communityAdjust = +adjustScale * 0.5;
-    else if (community.verdict === 'community_safe')    communityAdjust = -adjustScale;
-    else if (community.verdict === 'community_leaning_safe') communityAdjust = -adjustScale * 0.4;
+  if (community.confidence >= 30) {
+    communityAdjust = (community.score - 50) * 0.15; // +/- 7.5 max adjustment
   }
 
   const baseRisk =
     heuristics.brandSimilarity.score * weights.brandSimilarity +
-    heuristics.tld.score             * weights.tld +
-    heuristics.entropy.score         * weights.entropy +
-    heuristics.subdomain.score       * weights.subdomain +
-    heuristics.specialChars.score    * weights.specialChars +
-    heuristics.length.score          * weights.length +
-    aiScore                          * weights.ai;
+    heuristics.tld.score * weights.tld +
+    heuristics.entropy.score * weights.entropy +
+    heuristics.subdomain.score * weights.subdomain +
+    heuristics.specialChars.score * weights.specialChars +
+    heuristics.length.score * weights.length +
+    aiScore * weights.ai;
 
-  const riskScore  = Math.round(Math.min(100, Math.max(0, baseRisk + communityAdjust)));
+  const riskScore = Math.round(Math.min(100, baseRisk + communityAdjust));
   const trustScore = 100 - riskScore;
 
+  // Stricter thresholds — bias toward safety
   let verdict, action;
-  if      (trustScore >= 75) { verdict = 'trusted';     action = 'allow'; }
+  if (trustScore >= 75) { verdict = 'trusted'; action = 'allow'; }
   else if (trustScore >= 58) { verdict = 'likely_safe'; action = 'allow'; }
-  else if (trustScore >= 42) { verdict = 'caution';     action = 'warn';  }
-  else if (trustScore >= 22) { verdict = 'suspicious';  action = 'block'; }
-  else                       { verdict = 'dangerous';   action = 'block'; }
+  else if (trustScore >= 42) { verdict = 'caution'; action = 'warn'; }
+  else if (trustScore >= 22) { verdict = 'suspicious'; action = 'block'; }
+  else { verdict = 'dangerous'; action = 'block'; }
 
   // AI block recommendation upgrades warn → block
-  if (aiResult.recommendation === 'block' && action === 'warn') {
-    action = 'block';
-  }
+  if (aiResult.recommendation === 'block' && action === 'warn') action = 'block';
 
-  // ── Community action overrides (requires 60%+ weighted majority + 20% confidence) ──
-
-  const strongConsensus = community.confidence >= 20;
-
-  if (strongConsensus) {
-    if (community.verdict === 'community_unsafe' || community.verdict === 'community_suspicious') {
-      // Unsafe community consensus:
-      //   allow  → warn  (community says it's unsafe but AI/heuristics say allow)
-      //   warn   → block (community pushes a warn into a block)
-      //   block stays block
-      if      (action === 'allow') action = 'warn';
-      else if (action === 'warn')  action = 'block';
-    }
-
-    if (community.verdict === 'community_safe' || community.verdict === 'community_leaning_safe') {
-      // Safe community consensus:
-      //   block → warn  (community disputes the block — still shows warning, doesn't silently allow)
-      //   warn stays warn (community can't fully clear a warning without high confidence)
-      //   allow stays allow
-      if (action === 'block' && community.confidence >= 50) action = 'warn';
-    }
-  }
+  // Strong community consensus can shift one level
+  if (community.verdict === 'community_safe' && community.confidence >= 60 && action === 'block') action = 'warn';
+  if (community.verdict === 'community_unsafe' && community.confidence >= 60 && action === 'allow') action = 'warn';
 
   return { trustScore, riskScore, verdict, action };
 }
@@ -693,6 +470,27 @@ async function handleAnalyze(request, env) {
   return jsonResp(result);
 }
 
+async function handleVote(request, env) {
+  const { domain, vote, userId } = await request.json();
+  if (!domain || !['safe', 'suspicious', 'unsafe'].includes(vote)) {
+    return jsonResp({ error: 'Need domain + vote (safe|suspicious|unsafe)' }, 400);
+  }
+  const hostname = domain.toLowerCase().replace(/^www\./, '').trim();
+  const key = `votes:${hostname}`;
+  const existing = await env.COMMUNITY_VOTES.get(key, 'json') || { safe: 0, suspicious: 0, unsafe: 0, total: 0, voters: {} };
+
+  const uid = userId || 'anon_' + Math.random().toString(36).slice(2, 8);
+  const prev = existing.voters?.[uid];
+  if (prev) { existing[prev] = Math.max(0, existing[prev] - 1); existing.total = Math.max(0, existing.total - 1); }
+  existing[vote]++; existing.total++;
+  existing.voters = existing.voters || {};
+  existing.voters[uid] = vote;
+
+  await env.COMMUNITY_VOTES.put(key, JSON.stringify(existing));
+  await env.DOMAIN_CACHE.delete(`v2:${hostname}`); // Bust cache on new vote
+
+  return jsonResp({ success: true, domain: hostname, votes: { safe: existing.safe, suspicious: existing.suspicious, unsafe: existing.unsafe, total: existing.total } });
+}
 
 async function handleGetVotes(request, env) {
   const url = new URL(request.url);
